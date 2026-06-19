@@ -10,7 +10,11 @@ import com.badgr.orbreader.data.repository.BookRepository
 import com.badgr.orbreader.data.repository.ReadingSessionRepository
 import com.badgr.orbreader.sync.CloudSyncManager
 import com.badgr.orbreader.util.OrpEngine
+import kotlinx.coroutines.DelicateCoroutinesApi
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -280,8 +284,19 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
 
     private fun stopPlayback() { playJob?.cancel() }
 
+    @OptIn(DelicateCoroutinesApi::class)
     override fun onCleared() {
-        saveProgress()
         stopPlayback()
+        // viewModelScope is cancelled before onCleared() runs, so coroutines launched there die
+        // immediately. Use GlobalScope + NonCancellable to guarantee the word index reaches Room
+        // when the ViewModel is cleared without a BackHandler call (swipe-from-recents, system nav).
+        // Session recording and Firestore sync are intentionally omitted here — BackHandler handles
+        // those while the scope is still alive. This is a position-save safety net only.
+        val bookId = currentBookId
+        if (bookId.isEmpty()) return
+        val index = _state.value.currentIndex
+        GlobalScope.launch(Dispatchers.IO + NonCancellable) {
+            try { db.bookDao().updateProgress(bookId, index) } catch (_: Exception) {}
+        }
     }
 }

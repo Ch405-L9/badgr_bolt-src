@@ -27,6 +27,7 @@ import com.badgr.orbreader.data.preferences.THEME_SYSTEM
 import com.badgr.orbreader.ui.theme.ColorBlindness
 import com.badgr.orbreader.ui.theme.ReaderColors
 import com.badgr.orbreader.ui.theme.ReaderFonts
+import java.util.Locale
 
 private val ORP_COLORS = listOf(
     Color(0xFF00CED1),
@@ -105,7 +106,7 @@ fun SettingsScreen(
                         
                         // Sentence endings (. ? !)
                         Text(
-                            "Sentence Endings (. ? !)  —  ${String.format("%.1f", prefs.sentencePauseMultiplier)}x",
+                            "Sentence Endings (. ? !)  —  ${String.format(Locale.US, "%.1f", prefs.sentencePauseMultiplier)}x",
                             color      = ReaderColors.textWarm,
                             fontSize   = 13.sp,
                             fontWeight = FontWeight.SemiBold
@@ -126,7 +127,7 @@ fun SettingsScreen(
                         
                         // Clause separators (, ; :)
                         Text(
-                            "Clause Separators (, ; :)  —  ${String.format("%.1f", prefs.clausePauseMultiplier)}x",
+                            "Clause Separators (, ; :)  —  ${String.format(Locale.US, "%.1f", prefs.clausePauseMultiplier)}x",
                             color      = ReaderColors.textWarm,
                             fontSize   = 13.sp,
                             fontWeight = FontWeight.SemiBold

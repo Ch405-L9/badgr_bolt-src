@@ -4,6 +4,7 @@ import android.util.Log
 import com.badgr.orbreader.billing.ProGate
 import com.badgr.orbreader.data.local.BookDao
 import com.badgr.orbreader.data.local.BookEntity
+import com.google.firebase.auth.EmailAuthProvider
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.firestore.FirebaseFirestore
@@ -62,6 +63,23 @@ object CloudSyncManager {
             user.sendEmailVerification().await()
             Log.d(TAG, "Verification email resent to ${user.email}")
         }
+    }
+
+    suspend fun deleteAccount(password: String) {
+        val user = requireUser()
+        val email = user.email ?: error("No email is associated with this account.")
+
+        user.reauthenticate(
+            EmailAuthProvider.getCredential(email, password)
+        ).await()
+
+        val uid = user.uid
+        deleteCollectionDocuments(uid, COLLECTION_BOOKS)
+        deleteCollectionDocuments(uid, COLLECTION_PROGRESS)
+        db.collection(COLLECTION_USERS).document(uid).delete().await()
+        user.delete().await()
+        ProGate.revokeEntitlement()
+        Log.d(TAG, "Deleted account and cloud data for uid=$uid")
     }
 
     // ── Sync operations — all require ProGate.cloudSync AND email verified ──
@@ -132,6 +150,19 @@ object CloudSyncManager {
 
     private fun bookDocRef(uid: String, bookId: String) =
         db.collection(COLLECTION_USERS).document(uid).collection(COLLECTION_BOOKS).document(bookId)
+
+    private suspend fun deleteCollectionDocuments(uid: String, collection: String) {
+        val snapshot = db.collection(COLLECTION_USERS).document(uid)
+            .collection(collection)
+            .get()
+            .await()
+
+        snapshot.documents.chunked(450).forEach { documents ->
+            val batch = db.batch()
+            documents.forEach { batch.delete(it.reference) }
+            batch.commit().await()
+        }
+    }
 
     private fun BookEntity.toFirestoreMap(): Map<String, Any> = mapOf(
         "title"            to title,

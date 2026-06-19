@@ -23,9 +23,9 @@ android {
     defaultConfig {
         applicationId  = "com.badgr.orbreader"
         minSdk         = 26
-        targetSdk      = 35
-        versionCode    = 8
-        versionName    = "2.5.2"
+        targetSdk      = 36
+        versionCode    = 17
+        versionName    = "3.1.2"
 
         buildConfigField(
             "String",
@@ -56,6 +56,9 @@ android {
             signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = true
             isShrinkResources = true
+            ndk {
+                debugSymbolLevel = "SYMBOL_TABLE"
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

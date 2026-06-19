@@ -15,8 +15,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
+import kotlinx.coroutines.delay
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -32,11 +37,16 @@ fun AccountScreen(vm: AccountViewModel = viewModel()) {
     val isVerified   by vm.isEmailVerified.collectAsState()
     val activeSku    by vm.activeSku.collectAsState()
     val resendStatus by vm.resendStatus.collectAsState()
+    val isDeleting   by vm.isDeletingAccount.collectAsState()
     val activity      = LocalContext.current as Activity
 
-    var email    by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
-    var isSignUp by remember { mutableStateOf(false) }
+    var email               by remember { mutableStateOf("") }
+    var password            by remember { mutableStateOf("") }
+    var passwordVisible     by remember { mutableStateOf(false) }
+    var isSignUp            by remember { mutableStateOf(false) }
+    var showDeleteDialog      by remember { mutableStateOf(false) }
+    var deletePassword        by remember { mutableStateOf("") }
+    var deletePasswordVisible by remember { mutableStateOf(false) }
 
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -48,6 +58,66 @@ fun AccountScreen(vm: AccountViewModel = viewModel()) {
     }
 
     val isLifetime = activeSku == InAppPurchaseManager.SKU_PRO_LIFETIME
+
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                if (!isDeleting) {
+                    showDeleteDialog = false
+                    deletePassword = ""
+                }
+            },
+            title = { Text("Delete account?") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        "This permanently deletes your BADGR Bolt account and cloud-synced library data. " +
+                        "Local files on this device are not removed."
+                    )
+                    OutlinedTextField(
+                        value = deletePassword,
+                        onValueChange = { deletePassword = it },
+                        label = { Text("Password") },
+                        singleLine = true,
+                        enabled = !isDeleting,
+                        visualTransformation = if (deletePasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        trailingIcon = {
+                            IconButton(onClick = { deletePasswordVisible = !deletePasswordVisible }) {
+                                Icon(
+                                    if (deletePasswordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                    contentDescription = if (deletePasswordVisible) "Hide password" else "Show password"
+                                )
+                            }
+                        },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password)
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = !isDeleting,
+                    onClick = {
+                        vm.deleteAccount(deletePassword)
+                        showDeleteDialog = false
+                        deletePassword = ""
+                    }
+                ) {
+                    Text("Delete", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    enabled = !isDeleting,
+                    onClick = {
+                        showDeleteDialog = false
+                        deletePassword = ""
+                    }
+                ) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -170,6 +240,13 @@ fun AccountScreen(vm: AccountViewModel = viewModel()) {
 
                         // ── Email verification banner (TD-007) ────────────
                         if (!isVerified) {
+                            // Poll every 5 s — picks up verification without requiring log-out/in.
+                            LaunchedEffect(Unit) {
+                                while (true) {
+                                    delay(5_000)
+                                    vm.refreshVerificationStatus()
+                                }
+                            }
                             Surface(
                                 modifier = Modifier.fillMaxWidth(),
                                 color    = ReaderColors.orpFocal.copy(alpha = 0.06f),
@@ -185,18 +262,27 @@ fun AccountScreen(vm: AccountViewModel = viewModel()) {
                                     )
                                     Spacer(Modifier.height(4.dp))
                                     Text(
-                                        "Check your inbox for a verification link. " +
+                                        "Check your inbox and spam folder for a verification link. " +
                                         "Cloud sync is paused until your email is confirmed.",
                                         color    = ReaderColors.textDimmed,
                                         fontSize = 12.sp
                                     )
-                                    Spacer(Modifier.height(8.dp))
-                                    TextButton(onClick = { vm.resendVerificationEmail() }) {
-                                        Text(
-                                            "Resend verification email",
-                                            color    = ReaderColors.orpFocal,
-                                            fontSize = 12.sp
-                                        )
+                                    Spacer(Modifier.height(4.dp))
+                                    Row {
+                                        TextButton(onClick = { vm.refreshVerificationStatus() }) {
+                                            Text(
+                                                "I've verified — refresh",
+                                                color    = ReaderColors.orpFocal,
+                                                fontSize = 12.sp
+                                            )
+                                        }
+                                        TextButton(onClick = { vm.resendVerificationEmail() }) {
+                                            Text(
+                                                "Resend email",
+                                                color    = ReaderColors.textDimmed,
+                                                fontSize = 12.sp
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -235,11 +321,45 @@ fun AccountScreen(vm: AccountViewModel = viewModel()) {
                         Spacer(Modifier.height(4.dp))
                         OutlinedButton(
                             onClick = { vm.signOut() },
+                            enabled = !isDeleting,
                             colors  = ButtonDefaults.outlinedButtonColors(
                                 contentColor = MaterialTheme.colorScheme.primary
                             )
                         ) {
                             Text("Sign Out")
+                        }
+
+                        HorizontalDivider(color = ReaderColors.guideLine)
+
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(
+                                "Account deletion",
+                                color = MaterialTheme.colorScheme.onBackground,
+                                fontWeight = FontWeight.SemiBold,
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Text(
+                                "Delete your account and cloud-synced BADGR Bolt data.",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                            OutlinedButton(
+                                onClick = { showDeleteDialog = true },
+                                enabled = !isDeleting,
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = MaterialTheme.colorScheme.error
+                                ),
+                                border = BorderStroke(
+                                    1.dp,
+                                    MaterialTheme.colorScheme.error.copy(alpha = 0.6f)
+                                )
+                            ) {
+                                Text(if (isDeleting) "Deleting..." else "Delete Account")
+                            }
                         }
                         Spacer(Modifier.height(16.dp))
                     }
@@ -304,7 +424,16 @@ fun AccountScreen(vm: AccountViewModel = viewModel()) {
                             onValueChange        = { password = it },
                             label                = { Text("Password") },
                             singleLine           = true,
-                            visualTransformation = PasswordVisualTransformation(),
+                            visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                            trailingIcon         = {
+                                IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                                    Icon(
+                                        if (passwordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                        contentDescription = if (passwordVisible) "Hide password" else "Show password",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            },
                             keyboardOptions      = KeyboardOptions(keyboardType = KeyboardType.Password),
                             modifier             = Modifier.fillMaxWidth(),
                             colors               = OutlinedTextFieldDefaults.colors(

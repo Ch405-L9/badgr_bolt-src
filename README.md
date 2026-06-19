@@ -1,6 +1,6 @@
 # BADGR Bolt - Advanced RSVP Speed Reader
 
-**Version 2.6.0** | Android 8.0+ (API 26+) | BADGRTechnologies LLC
+**Version 3.1.3** | Android 8.0+ (API 26+) | BADGRTechnologies LLC
 
 BADGR Bolt is a precision speed reading application using Optimal Recognition Point (ORP)
 technology and Rapid Serial Visual Presentation (RSVP) to help you read faster with
@@ -15,13 +15,14 @@ better comprehension.
 | RSVP / ORP Engine            | Complete     | 1.0.0    | Core reading engine                      |
 | TXT Import via SAF           | Complete     | 1.0.0    |                                          |
 | PDF and EPUB Import          | Complete     | 1.0.0    | Via backend conversion service           |
-| DOCX and IMAGE Import        | Complete     | 2.4.2    | DOCX via backend; IMAGE via OCR          |
+| DOCX Import                  | Complete     | 2.4.2    | Via backend conversion service           |
+| IMAGE Import (OCR)           | Coming Soon  | —        | Backend integration pending              |
 | Firebase Auth                | Complete     | 2.2.5    | Email/password with verification         |
 | Firestore Cloud Sync         | Complete     | 2.2.5    | Books and progress; Pro + verified only  |
 | Firestore Security Rules     | Complete     | 2.2.5    | User-scoped, production mode             |
 | Google Play Billing          | Complete     | 2.3.6    | Monthly subscription + lifetime purchase |
 | Pro Entitlement Persistence  | Complete     | 2.3.3    | DataStore-backed, survives process death |
-| Purchase Restoration         | Complete     | 2.3.5    | Restored on app resume                   |
+| Purchase Restoration         | Complete     | 3.1.3    | ITEM_ALREADY_OWNED silently restores Pro  |
 | Free Book Limit (5)          | Complete     | 2.3.6    | Upgrade dialog on limit reached          |
 | Performance Tracker          | Complete     | 2.4.0    | Session logging, WPM, active time        |
 | Achievements (20)            | Complete     | 2.4.0    | 5 categories, Room-persisted             |
@@ -34,14 +35,18 @@ better comprehension.
 | Chunk Reading (1-4 words)    | Complete     | 2.5.0    | ORP focal on first word                  |
 | Punctuation Pauses           | Complete     | 2.5.2    | Configurable multipliers                 |
 | Email Verification Gate      | Complete     | 2.6.0    | Sync requires verified email (TD-007)    |
+| Email Verification Auto-Poll | Complete     | 3.1.3    | 5 s poll + reload(); no log out/in needed |
+| Password Visibility Toggle   | Complete     | 3.1.3    | Eye icon on all password fields          |
+| Seekable Progress Slider     | Complete     | 3.1.3    | Tap/drag to seek within book             |
+| WPM ±25 Buttons              | Complete     | 3.1.3    | Distinct from word-skip controls         |
+| Time Remaining Display       | Complete     | 3.1.3    | Live estimate below WPM label            |
+| Pro File Size Gate           | Complete     | 3.1.3    | 20 MB free / 100 MB Pro                  |
 | Account Pro Status Card      | Complete     | 2.6.0    | Lifetime vs Monthly display              |
 | Forgot Password              | Complete     | 2.6.0    | Firebase password reset                  |
 | Terms of Service             | Complete     | 2.6.0    | docs/terms_of_service.html               |
 | Upgrade Navigation           | Complete     | 2.6.0    | Unlock buttons route to Account tab      |
-| UX / UI Redesign             | Planned      | 2.5.6    | Full BADGR brand pass                    |
-| BADGR Logo Integration       | Planned      | 2.5.6    | Requires final logo assets               |
-| Closed Beta                  | Pending      | 2.6.1    | Signed AAB + 5 testers                   |
-| Public Launch                | Planned      | 3.0.0    |                                          |
+| IMAGE Import (OCR)           | Coming Soon  | —        | UI placeholder live; backend pending     |
+| Closed Beta                  | Pending      | —        | Signed AAB + testers                     |
 
 ---
 
@@ -52,8 +57,8 @@ better comprehension.
 - **Architecture**: MVVM with StateFlow
 - **Local storage**: Room v2.6.1 (schema v5, explicit migrations)
 - **Preferences**: DataStore
-- **Network**: Retrofit + OkHttp (30s connect / 60s read)
-- **Backend**: Render.com (Python/FastAPI) for PDF/EPUB/DOCX/IMAGE conversion
+- **Network**: Retrofit + OkHttp (30s connect / 120s read / 300s write)
+- **Backend**: Render.com (Python/FastAPI) for PDF/EPUB/DOCX conversion; streaming upload, 100 MB cap
 - **Cloud**: Firebase Auth + Firestore (Crashlytics, Analytics)
 - **Billing**: Google Play Billing Library v7.0.0
 
@@ -115,8 +120,9 @@ adb install app/build/outputs/apk/debug/app-debug.apk
 
 | ID | Description | Status |
 |---|---|---|
-| TD-004 | Deprecated `statusBarColor` in Theme.kt | Deferred to 2.5.6 |
+| TD-004 | Deprecated `statusBarColor` in Theme.kt | Deferred post-launch |
 | TD-006 | No unit or instrumentation tests | Pre-launch |
+| TD-008 | IMAGE/OCR import not yet wired to backend | Coming soon |
 
 ---
 

@@ -31,11 +31,12 @@ object ProGate {
     val isPro: Boolean get() = _isPro.value
 
     // ── Feature gates ─────────────────────────────────────────────────────────
-    val statsScreen:  Boolean get() = isPro
-    val cloudSync:    Boolean get() = isPro
-    val unlimitedLib: Boolean get() = isPro
-    val customThemes: Boolean get() = isPro
-    val tts:          Boolean get() = isPro
+    val statsScreen:     Boolean get() = isPro
+    val cloudSync:       Boolean get() = isPro
+    val unlimitedLib:    Boolean get() = isPro
+    val customThemes:    Boolean get() = isPro
+    val tts:             Boolean get() = isPro
+    val largeFileImport: Boolean get() = isPro  // 100 MB cap vs 20 MB free
 
     // ── Called by OrbReaderApp collector once billing is wired ────────────────
     fun setProEntitlement(unlocked: Boolean) {

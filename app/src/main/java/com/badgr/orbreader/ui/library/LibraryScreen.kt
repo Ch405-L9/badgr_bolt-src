@@ -28,7 +28,8 @@ private data class FormatOption(
     val label   : String,
     val mime    : String,
     val emoji   : String,
-    val subtitle: String
+    val subtitle: String,
+    val enabled : Boolean = true
 )
 
 private val FORMAT_OPTIONS = listOf(
@@ -36,7 +37,7 @@ private val FORMAT_OPTIONS = listOf(
     FormatOption("PDF",   "application/pdf",                     "📕", "Documents and articles"),
     FormatOption("EPUB",  "application/epub+zip",                "📗", "Ebooks"),
     FormatOption("DOCX",  "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "📘", "Word documents"),
-    FormatOption("IMAGE", "image/*",                             "🖼",  "Photos of text — OCR")
+    FormatOption("IMAGE", "image/*",                             "🖼",  "OCR — Coming soon", enabled = false)
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -127,9 +128,12 @@ fun LibraryScreen(
                 FORMAT_OPTIONS.forEach { fmt ->
                     Surface(
                         onClick  = {
-                            showFormatSheet = false
-                            launcherMap[fmt.label]?.launch(fmt.mime)
+                            if (fmt.enabled) {
+                                showFormatSheet = false
+                                launcherMap[fmt.label]?.launch(fmt.mime)
+                            }
                         },
+                        enabled  = fmt.enabled,
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(vertical = 4.dp),
@@ -142,9 +146,23 @@ fun LibraryScreen(
                             horizontalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
                             Text(fmt.emoji, fontSize = 24.sp)
-                            Column {
+                            Column(modifier = Modifier.weight(1f)) {
                                 Text(fmt.label, color = ReaderColors.textWarm, fontWeight = FontWeight.SemiBold)
                                 Text(fmt.subtitle, color = ReaderColors.textDimmed, fontSize = 12.sp)
+                            }
+                            if (!fmt.enabled) {
+                                Surface(
+                                    color = ReaderColors.textDimmed.copy(alpha = 0.15f),
+                                    shape = RoundedCornerShape(4.dp)
+                                ) {
+                                    Text(
+                                        "SOON",
+                                        modifier   = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                        color      = ReaderColors.textDimmed,
+                                        fontSize   = 9.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
                             }
                         }
                     }
@@ -234,7 +252,7 @@ fun LibraryScreen(
                         )
                         Spacer(Modifier.height(4.dp))
                         Text(
-                            "Tap + to import TXT, PDF, EPUB, DOCX, or an image",
+                            "Tap + to import TXT, PDF, EPUB, or DOCX",
                             color    = ReaderColors.textDimmed,
                             fontSize = 13.sp
                         )

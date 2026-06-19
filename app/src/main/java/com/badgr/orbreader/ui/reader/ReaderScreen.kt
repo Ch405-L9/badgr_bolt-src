@@ -62,6 +62,14 @@ fun ReaderScreen(
         viewModel.getCurrentChunk()
     }
 
+    // Slider tracks playback position but stays frozen during user drag (isDragging).
+    // seekTo() fires only on drag release to avoid continuous state thrashing.
+    var sliderPos by remember { mutableStateOf(state.progress) }
+    var isDragging by remember { mutableStateOf(false) }
+    LaunchedEffect(state.progress) {
+        if (!isDragging) sliderPos = state.progress
+    }
+
     BackHandler {
         viewModel.saveProgress()
         onBack()
@@ -161,11 +169,23 @@ fun ReaderScreen(
                             }
                         }
                         Spacer(Modifier.height(8.dp))
-                        LinearProgressIndicator(
-                            progress   = { state.progress },
-                            modifier   = Modifier.fillMaxWidth(),
-                            color      = currentOrpColor,
-                            trackColor = ReaderColors.guideLine
+                        Slider(
+                            value    = sliderPos,
+                            onValueChange = { sliderPos = it; isDragging = true },
+                            onValueChangeFinished = {
+                                isDragging = false
+                                viewModel.seekTo(
+                                    (sliderPos * (state.words.size - 1).coerceAtLeast(1)).toInt()
+                                )
+                            },
+                            colors   = SliderDefaults.colors(
+                                thumbColor         = currentOrpColor,
+                                activeTrackColor   = currentOrpColor,
+                                inactiveTrackColor = ReaderColors.guideLine
+                            ),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(24.dp)
                         )
                         Spacer(Modifier.height(20.dp))
 
@@ -194,7 +214,7 @@ fun ReaderScreen(
                                 )
                             }
                             IconButton(onClick = { viewModel.adjustWpm(-25) }) {
-                                Icon(Icons.Default.SkipPrevious, "-25 WPM", tint = ReaderColors.textDimmed)
+                                Text("−25", color = ReaderColors.textDimmed, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                             }
                             FloatingActionButton(
                                 onClick        = { viewModel.togglePlayPause() },
@@ -207,7 +227,7 @@ fun ReaderScreen(
                                 )
                             }
                             IconButton(onClick = { viewModel.adjustWpm(25) }) {
-                                Icon(Icons.Default.SkipNext, "+25 WPM", tint = ReaderColors.textDimmed)
+                                Text("+25", color = ReaderColors.textDimmed, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                             }
                             Box(
                                 modifier = Modifier
@@ -234,6 +254,18 @@ fun ReaderScreen(
                             "${state.wpm} WPM",
                             color = currentOrpColor,
                             style = MaterialTheme.typography.labelMedium
+                        )
+                        val wordsLeft = (state.words.size - state.currentIndex).coerceAtLeast(0)
+                        val minsLeft  = wordsLeft / state.wpm.coerceAtLeast(1)
+                        val timeLeft  = when {
+                            minsLeft < 1  -> "< 1 min"
+                            minsLeft < 60 -> "$minsLeft min"
+                            else          -> "${minsLeft / 60}h ${minsLeft % 60}m"
+                        }
+                        Text(
+                            "~$timeLeft left",
+                            color = ReaderColors.textDimmed,
+                            style = MaterialTheme.typography.labelSmall
                         )
 
                         Spacer(Modifier.height(16.dp))

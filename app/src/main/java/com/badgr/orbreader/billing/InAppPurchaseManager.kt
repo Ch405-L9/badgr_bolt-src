@@ -151,6 +151,10 @@ class InAppPurchaseManager(
                 purchases?.let { scope.launch { handlePurchaseList(it) } }
             }
             BillingClient.BillingResponseCode.USER_CANCELED -> { /* no-op */ }
+            BillingClient.BillingResponseCode.ITEM_ALREADY_OWNED -> {
+                // User owns this product — re-query to restore entitlement instead of showing an error.
+                scope.launch { queryExistingPurchases() }
+            }
             else -> {
                 onPurchaseError("Purchase failed: ${result.debugMessage}")
             }

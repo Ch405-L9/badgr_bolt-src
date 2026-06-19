@@ -3,6 +3,8 @@ package com.badgr.orbreader.data.repository
 import android.content.ContentResolver
 import android.content.Context
 import android.net.Uri
+import android.provider.OpenableColumns
+import com.badgr.orbreader.billing.ProGate
 import com.badgr.orbreader.data.local.BookDao
 import com.badgr.orbreader.data.local.BookEntity
 import com.badgr.orbreader.data.model.Book
@@ -19,7 +21,9 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
-import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.RequestBody
+import okio.BufferedSink
+import okio.source
 import java.io.File
 
 sealed class ImportResult {
@@ -32,6 +36,11 @@ class BookRepository(
     private val bookDao: BookDao
 ) {
     private val gson = Gson()
+
+    private companion object {
+        const val MAX_IMPORT_BYTES_FREE = 20L  * 1024 * 1024 // 20 MB — free tier
+        const val MAX_IMPORT_BYTES_PRO  = 100L * 1024 * 1024 // 100 MB — Pro, matches backend cap
+    }
 
     val books: Flow<List<Book>> = bookDao.getAllBooks().map { list ->
         list.map { it.toDomain() }
@@ -62,17 +71,42 @@ class BookRepository(
         mimeType: String
     ): ImportResult = withContext(Dispatchers.IO) {
         try {
-            val bytes = context.contentResolver.openInputStream(uri)?.readBytes()
-                ?: return@withContext ImportResult.Error("Cannot read file from URI")
+            // Query file size before reading anything — enforces the cap and lets OkHttp
+            // send a Content-Length header so the server doesn't have to buffer the body.
+            val fileSize = context.contentResolver.query(
+                uri, arrayOf(OpenableColumns.SIZE), null, null, null
+            )?.use { cursor ->
+                if (cursor.moveToFirst()) cursor.getLong(0) else -1L
+            } ?: -1L
 
-            val requestBody = bytes.toRequestBody(mimeType.toMediaTypeOrNull())
+            val maxBytes = if (ProGate.largeFileImport) MAX_IMPORT_BYTES_PRO else MAX_IMPORT_BYTES_FREE
+            val limitMb  = maxBytes / (1024L * 1024L)
+            if (fileSize > maxBytes) {
+                return@withContext ImportResult.Error(
+                    "File too large. Maximum is ${limitMb} MB." +
+                        if (!ProGate.largeFileImport) " Upgrade to Pro for up to 100 MB." else ""
+                )
+            }
+
+            // Stream the upload — no readBytes(), no in-memory copy of the whole file.
+            val mediaType = mimeType.toMediaTypeOrNull()
+            val requestBody = object : RequestBody() {
+                override fun contentType() = mediaType
+                override fun contentLength() = fileSize
+                override fun writeTo(sink: BufferedSink) {
+                    context.contentResolver.openInputStream(uri)?.source()?.use { source ->
+                        sink.writeAll(source)
+                    }
+                }
+            }
             val part = MultipartBody.Part.createFormData("file", fileName, requestBody)
 
             val response = ApiClient.convertApi.convertFile(part)
 
             if (!response.isSuccessful) {
                 return@withContext ImportResult.Error(
-                    "Server error ${response.code()}: ${response.errorBody()?.string()}"
+                    "Server error ${response.code()}: " +
+                        (response.errorBody()?.string()?.take(500) ?: "unknown error")
                 )
             }
 
@@ -84,21 +118,27 @@ class BookRepository(
             }
 
             val words = WordTokenizer.tokenize(body.text)
-
             val tempId = java.util.UUID.randomUUID().toString()
 
-            // ── Cover + metadata extraction ────────────────────────────────
+            // Cover + metadata — each branch reads only what it needs, after the upload
+            // stream is already closed. Memory peak is now one operation at a time.
             val coverPath: String?
             val displayTitle: String
 
             when (fileType) {
                 FileType.EPUB -> {
-                    coverPath    = CoverExtractor.fromEpub(context, tempId, bytes)
-                    val meta     = EpubMetadata.extract(bytes)
+                    val epubBytes = context.contentResolver.openInputStream(uri)?.readBytes()
+                        ?: byteArrayOf()
+                    coverPath    = CoverExtractor.fromEpub(context, tempId, epubBytes)
+                    val meta     = EpubMetadata.extract(epubBytes)
                     displayTitle = meta.title?.takeIf { it.isNotBlank() } ?: fileName
                 }
                 FileType.PDF -> {
-                    val tmp  = File(context.cacheDir, "$tempId.pdf").also { it.writeBytes(bytes) }
+                    // Write directly to a temp file — never buffers all bytes in RAM.
+                    val tmp = File(context.cacheDir, "$tempId.pdf")
+                    context.contentResolver.openInputStream(uri)?.use { input ->
+                        tmp.outputStream().use { input.copyTo(it) }
+                    }
                     coverPath    = CoverExtractor.fromPdf(context, tempId, tmp).also { tmp.delete() }
                     displayTitle = fileName
                 }
@@ -137,7 +177,19 @@ class BookRepository(
     }
 
     private suspend fun saveBook(book: Book, words: List<String>) {
-        wordFile(book.id).writeText(gson.toJson(words))
+        val target = wordFile(book.id)
+        val tmp = File(target.parent, "${target.name}.tmp")
+        try {
+            tmp.writeText(gson.toJson(words))
+            // rename() is atomic on the same filesystem (internal storage) — target is either
+            // the old file or the new file, never a partial write.
+            if (!tmp.renameTo(target)) {
+                // Cross-filesystem fallback (should not happen on internal storage).
+                target.writeText(gson.toJson(words))
+            }
+        } finally {
+            if (tmp.exists()) tmp.delete()
+        }
         bookDao.insertBook(BookEntity.fromDomain(book))
     }
 

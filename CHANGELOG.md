@@ -1,3 +1,35 @@
+## [3.1.3] — 2026-06-19
+
+### Added
+- ReaderScreen: Seekable `Slider` replaces `LinearProgressIndicator` — tap anywhere to jump position
+- ReaderScreen: WPM buttons now show `−25` / `+25` text labels, visually distinct from word-skip controls
+- ReaderScreen: Time-remaining estimate below WPM label (`~N min left` / `~Xh Ym left` / `< 1 min`)
+- LibraryScreen: IMAGE format shows "OCR — Coming soon" badge and is disabled; prevents broken /convert call
+- ProGate: `largeFileImport` gate — `true` for Pro, controls 20 MB vs 100 MB upload cap
+- AccountScreen: Password visibility eye icon on sign-in, sign-up, and delete-account password fields
+- AccountScreen: Verification banner updated — now reads "inbox and spam folder"
+- AccountScreen: "I've verified — refresh" button calls `user.reload()` immediately
+- AccountScreen: Background poll every 5 seconds auto-refreshes verification state — no log out/in required
+- AccountViewModel: `refreshVerificationStatus()` calls `user.reload().await()` to bypass Firebase cache
+
+### Changed
+- BookRepository: `MAX_IMPORT_BYTES_FREE` = 20 MB; `MAX_IMPORT_BYTES_PRO` = 100 MB; upsell shown to free users on oversized file
+- ApiClient: `readTimeout` raised 60 s → 120 s (Render cold-start ~50 s + processing headroom)
+- ApiClient: `writeTimeout` raised 60 s → 300 s (100 MB upload on 4G ~80 s; 300 s covers slow connections)
+- ApiClient: `HttpLoggingInterceptor` level gated on `BuildConfig.DEBUG` — `BODY` in debug, `BASIC` in release
+
+### Fixed
+- InAppPurchaseManager: `ITEM_ALREADY_OWNED` (code 7) now calls `queryExistingPurchases()` to restore Pro entitlement instead of showing "Purchase failed" error
+- ReaderViewModel: `onCleared()` uses `GlobalScope.launch(Dispatchers.IO + NonCancellable)` — guarantees Room progress write after `viewModelScope` cancels; prevents data loss on swipe-dismiss
+- BookRepository: Word file write is now atomic — writes to `.tmp` first, then `renameTo(target)`; prevents corrupted JSON on mid-write crash
+- ApiClient: `HttpLoggingInterceptor.Level.BODY` in release builds caused OOM on large upload + response payloads; fixed by gating on `BuildConfig.DEBUG`
+
+### Backend (badgr-text-service)
+- Raised `MAX_FILE_BYTES` 20 MB → 100 MB
+- Replaced `await file.read()` with 64 KB chunked streaming to temp file — eliminates RAM exhaustion on large uploads
+- Type validation (MIME check) now executes before reading any file bytes
+- Added `except HTTPException: raise` guard before broad `except Exception` to prevent swallowing 413 responses
+
 ## [2.6.0] — 2026-03-14
 
 ### Added

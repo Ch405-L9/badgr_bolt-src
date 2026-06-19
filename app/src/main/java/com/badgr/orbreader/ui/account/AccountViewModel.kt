@@ -51,6 +51,9 @@ class AccountViewModel(application: Application) : AndroidViewModel(application)
     val resendStatus: StateFlow<String?> = _resendStatus.asStateFlow()
     fun clearResendStatus() { _resendStatus.value = null }
 
+    private val _isDeletingAccount = MutableStateFlow(false)
+    val isDeletingAccount: StateFlow<Boolean> = _isDeletingAccount.asStateFlow()
+
     fun signIn(email: String, password: String) {
         if (email.isBlank() || password.isBlank()) {
             _uiState.value = AccountUiState.Error("Email and password are required.")
@@ -118,6 +121,16 @@ class AccountViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    // TD-007: reload Firebase user to pick up email verification without log-out/in
+    fun refreshVerificationStatus() {
+        viewModelScope.launch {
+            try {
+                CloudSyncManager.currentUser?.reload()?.await()
+                _isEmailVerified.value = CloudSyncManager.currentUser?.isEmailVerified == true
+            } catch (_: Exception) {}
+        }
+    }
+
     // TD-007: resend verification email
     fun resendVerificationEmail() {
         viewModelScope.launch {
@@ -125,6 +138,27 @@ class AccountViewModel(application: Application) : AndroidViewModel(application)
                 CloudSyncManager.resendVerificationEmail()
             } catch (e: Exception) {
                 // Non-fatal — UI already shows the banner, silently swallow
+            }
+        }
+    }
+
+    fun deleteAccount(password: String) {
+        if (password.isBlank()) {
+            _resendStatus.value = "Enter your password to delete this account."
+            return
+        }
+        viewModelScope.launch {
+            _isDeletingAccount.value = true
+            try {
+                CloudSyncManager.deleteAccount(password)
+                _isEmailVerified.value = false
+                _uiState.value = AccountUiState.SignedOut
+                _resendStatus.value = "Account deleted."
+            } catch (e: Exception) {
+                _resendStatus.value = e.localizedMessage
+                    ?: "Account deletion failed. Sign in again and retry."
+            } finally {
+                _isDeletingAccount.value = false
             }
         }
     }
