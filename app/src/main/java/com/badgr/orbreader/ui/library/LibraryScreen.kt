@@ -51,10 +51,13 @@ fun LibraryScreen(
     val uiState      by viewModel.uiState.collectAsState()
     val isPro        by ProGate.isProFlow.collectAsState()
     val summaryState by viewModel.summaryState.collectAsState()
+    val quizState    by viewModel.quizState.collectAsState()
 
     var showFormatSheet   by remember { mutableStateOf(false) }
     var summaryBookId     by remember { mutableStateOf<String?>(null) }
     var summaryBookTitle  by remember { mutableStateOf("") }
+    var quizBookId        by remember { mutableStateOf<String?>(null) }
+    var quizBookTitle     by remember { mutableStateOf("") }
 
     // One launcher per format
     val txtPicker  = rememberFilePicker("text/plain")           { u, n -> viewModel.importTxt(u, n) }
@@ -174,6 +177,160 @@ fun LibraryScreen(
                         Spacer(Modifier.height(12.dp))
                         OutlinedButton(
                             onClick  = { viewModel.fetchSummary(summaryBookId!!) },
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text("Retry") }
+                    }
+                }
+            }
+        }
+    }
+
+    // ── Quiz bottom sheet ─────────────────────────────────────────────────
+    if (quizBookId != null) {
+        ModalBottomSheet(
+            onDismissRequest = { quizBookId = null; viewModel.clearQuiz() },
+            containerColor   = ReaderColors.background
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp)
+                    .padding(bottom = 48.dp)
+            ) {
+                Text(
+                    quizBookTitle,
+                    color      = ReaderColors.textWarm,
+                    fontWeight = FontWeight.Bold,
+                    fontSize   = 18.sp,
+                    maxLines   = 2
+                )
+                Text(
+                    "Comprehension Quiz",
+                    color    = ReaderColors.textDimmed,
+                    fontSize = 12.sp
+                )
+                Spacer(Modifier.height(16.dp))
+
+                when (val qs = quizState) {
+                    is QuizState.Idle -> {
+                        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                        }
+                    }
+                    is QuizState.Loading -> {
+                        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                        }
+                    }
+                    is QuizState.Active -> {
+                        val q       = qs.questions[qs.currentIndex]
+                        val correct = q.answerIndex
+                        Text(
+                            "Question ${qs.currentIndex + 1} of ${qs.questions.size}",
+                            color    = ReaderColors.textDimmed,
+                            fontSize = 12.sp
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            q.question,
+                            color      = ReaderColors.textWarm,
+                            fontWeight = FontWeight.Bold,
+                            fontSize   = 15.sp
+                        )
+                        Spacer(Modifier.height(12.dp))
+                        q.options.forEachIndexed { idx, option ->
+                            val containerColor = when {
+                                qs.picked == null                        -> MaterialTheme.colorScheme.surfaceVariant
+                                idx == correct                           -> MaterialTheme.colorScheme.primaryContainer
+                                idx == qs.picked && qs.picked != correct -> MaterialTheme.colorScheme.errorContainer
+                                else                                     -> MaterialTheme.colorScheme.surfaceVariant
+                            }
+                            Surface(
+                                modifier      = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp),
+                                shape         = androidx.compose.foundation.shape.RoundedCornerShape(10.dp),
+                                color         = containerColor,
+                                onClick       = { if (qs.picked == null) viewModel.answerQuestion(idx) }
+                            ) {
+                                Text(
+                                    option,
+                                    modifier = Modifier.padding(12.dp),
+                                    color    = MaterialTheme.colorScheme.onSurface,
+                                    fontSize = 13.sp,
+                                    lineHeight = 18.sp
+                                )
+                            }
+                        }
+                        if (qs.picked != null) {
+                            Spacer(Modifier.height(16.dp))
+                            val correct2 = qs.picked == correct
+                            Text(
+                                if (correct2) "Correct!" else "Incorrect — see highlighted answer",
+                                color      = if (correct2) MaterialTheme.colorScheme.primary
+                                             else          MaterialTheme.colorScheme.error,
+                                fontWeight = FontWeight.Bold,
+                                fontSize   = 14.sp
+                            )
+                            Spacer(Modifier.height(12.dp))
+                            Button(
+                                onClick  = { viewModel.nextQuestion() },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors   = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.primary
+                                )
+                            ) {
+                                Text(if (qs.currentIndex + 1 < qs.questions.size) "Next Question" else "See Results")
+                            }
+                        }
+                    }
+                    is QuizState.Complete -> {
+                        val pct = (qs.score * 100) / qs.total.coerceAtLeast(1)
+                        Text(
+                            "Quiz Complete!",
+                            color      = ReaderColors.textWarm,
+                            fontWeight = FontWeight.Bold,
+                            fontSize   = 20.sp
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            "${qs.score} / ${qs.total} correct  ($pct%)",
+                            color    = MaterialTheme.colorScheme.primary,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            when {
+                                pct == 100 -> "Perfect score! Outstanding comprehension."
+                                pct >= 66  -> "Good job — solid retention."
+                                pct >= 33  -> "Keep reading — comprehension will improve."
+                                else       -> "Try re-reading this section before moving on."
+                            },
+                            color    = ReaderColors.textDimmed,
+                            fontSize = 13.sp
+                        )
+                        Spacer(Modifier.height(20.dp))
+                        Button(
+                            onClick  = {
+                                quizBookId?.let { onOpenBook(it) }
+                                quizBookId = null
+                                viewModel.clearQuiz()
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors   = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                        ) { Text("Open Book") }
+                        Spacer(Modifier.height(8.dp))
+                        OutlinedButton(
+                            onClick  = { viewModel.fetchQuiz(quizBookId!!) },
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text("Retry Quiz") }
+                    }
+                    is QuizState.Error -> {
+                        Text(qs.message, color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
+                        Spacer(Modifier.height(12.dp))
+                        OutlinedButton(
+                            onClick  = { viewModel.fetchQuiz(quizBookId!!) },
                             modifier = Modifier.fillMaxWidth()
                         ) { Text("Retry") }
                     }
@@ -352,6 +509,11 @@ fun LibraryScreen(
                                 summaryBookTitle = book.title
                                 viewModel.clearSummary()
                                 viewModel.fetchSummary(book.id)
+                            },
+                            onQuiz    = {
+                                quizBookId    = book.id
+                                quizBookTitle = book.title
+                                viewModel.fetchQuiz(book.id)
                             }
                         )
                         HorizontalDivider(color = ReaderColors.guideLine)

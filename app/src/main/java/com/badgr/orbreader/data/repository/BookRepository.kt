@@ -193,6 +193,29 @@ class BookRepository(
         bookDao.insertBook(BookEntity.fromDomain(book))
     }
 
+    suspend fun fetchQuiz(bookId: String): Result<List<com.badgr.orbreader.data.remote.QuizQuestion>> =
+        withContext(Dispatchers.IO) {
+            val words = loadWords(bookId)
+            if (words.isEmpty()) return@withContext Result.failure(Exception("No text found for this book."))
+            val text = words.take(4000).joinToString(" ")
+            try {
+                val response = ApiClient.quizApi.fetchQuiz(
+                    com.badgr.orbreader.data.remote.QuizRequest(text = text)
+                )
+                if (response.isSuccessful) {
+                    val questions = response.body()?.questions
+                    if (questions.isNullOrEmpty())
+                        Result.failure(Exception("No questions returned."))
+                    else
+                        Result.success(questions)
+                } else {
+                    Result.failure(Exception("Server error ${response.code()}"))
+                }
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
+        }
+
     suspend fun fetchAndCacheSummary(bookId: String): Result<String> = withContext(Dispatchers.IO) {
         // Return cached summary if already fetched.
         bookDao.getSummary(bookId)?.let { return@withContext Result.success(it) }

@@ -37,4 +37,6 @@ object ApiClient {
     val convertApi: ConvertApi by lazy { retrofit.create(ConvertApi::class.java) }
 
     val summarizeApi: SummarizeApi by lazy { retrofit.create(SummarizeApi::class.java) }
+
+    val quizApi: QuizApi by lazy { retrofit.create(QuizApi::class.java) }
 }

@@ -8,6 +8,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.AutoStories
+import androidx.compose.material.icons.filled.Quiz
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -29,7 +30,8 @@ fun BookRow(
     book      : Book,
     onClick   : () -> Unit,
     onDelete  : () -> Unit,
-    onSummary : () -> Unit = {}
+    onSummary : () -> Unit = {},
+    onQuiz    : () -> Unit = {}
 ) {
     var showDeleteDialog by remember { mutableStateOf(false) }
 
@@ -138,6 +140,13 @@ fun BookRow(
                     Icons.Default.AutoStories,
                     contentDescription = "Summarize ${book.title}",
                     tint               = MaterialTheme.colorScheme.primary
+                )
+            }
+            IconButton(onClick = onQuiz) {
+                Icon(
+                    Icons.Default.Quiz,
+                    contentDescription = "Quiz for ${book.title}",
+                    tint               = MaterialTheme.colorScheme.tertiary
                 )
             }
             IconButton(onClick = { showDeleteDialog = true }) {
