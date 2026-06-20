@@ -1,3 +1,9 @@
+## [3.1.4] — 2026-06-19
+
+### Fixed
+- ReaderScreen: Landscape orientation now shows word display — in portrait the layout is unchanged; in landscape switches to a side-by-side Row with the word display filling the left and a scrollable controls panel (340dp) on the right
+- ReaderViewModel: WPM changes made on the reader screen now persist to DataStore — settings page immediately reflects the updated value (was only updating local state, never writing to preferences)
+
 ## [3.1.3] — 2026-06-19
 
 ### Added

@@ -215,6 +215,7 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
     fun adjustWpm(delta: Int) {
         val newWpm = (_state.value.wpm + delta).coerceIn(60, 1200)
         _state.update { it.copy(wpm = newWpm) }
+        viewModelScope.launch { prefsRepo.setDefaultWpm(newWpm) }
         if (_state.value.isPlaying) { stopPlayback(); startPlayback() }
     }
 
