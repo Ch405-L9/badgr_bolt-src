@@ -50,14 +50,18 @@ fun LibraryScreen(
     val books        by viewModel.books.collectAsState()
     val uiState      by viewModel.uiState.collectAsState()
     val isPro        by ProGate.isProFlow.collectAsState()
-    val summaryState by viewModel.summaryState.collectAsState()
-    val quizState    by viewModel.quizState.collectAsState()
+    val summaryState   by viewModel.summaryState.collectAsState()
+    val quizState      by viewModel.quizState.collectAsState()
+    val reviewState    by viewModel.reviewState.collectAsState()
+    val dueCountByBook by viewModel.dueCountByBook.collectAsState()
 
     var showFormatSheet   by remember { mutableStateOf(false) }
     var summaryBookId     by remember { mutableStateOf<String?>(null) }
     var summaryBookTitle  by remember { mutableStateOf("") }
     var quizBookId        by remember { mutableStateOf<String?>(null) }
     var quizBookTitle     by remember { mutableStateOf("") }
+    var reviewBookId      by remember { mutableStateOf<String?>(null) }
+    var reviewBookTitle   by remember { mutableStateOf("") }
 
     // One launcher per format
     val txtPicker  = rememberFilePicker("text/plain")           { u, n -> viewModel.importTxt(u, n) }
@@ -339,6 +343,156 @@ fun LibraryScreen(
         }
     }
 
+    // ── Review bottom sheet ───────────────────────────────────────────────
+    if (reviewBookId != null) {
+        ModalBottomSheet(
+            onDismissRequest = { reviewBookId = null; viewModel.clearReview() },
+            containerColor   = ReaderColors.background
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp)
+                    .padding(bottom = 48.dp)
+            ) {
+                Text(
+                    reviewBookTitle,
+                    color      = ReaderColors.textWarm,
+                    fontWeight = FontWeight.Bold,
+                    fontSize   = 18.sp,
+                    maxLines   = 2
+                )
+                Text(
+                    "Spaced Repetition Review",
+                    color    = ReaderColors.textDimmed,
+                    fontSize = 12.sp
+                )
+                Spacer(Modifier.height(16.dp))
+
+                when (val rs = reviewState) {
+                    is ReviewState.Idle -> {
+                        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                        }
+                    }
+                    is ReviewState.NoDue -> {
+                        Text(
+                            "No cards due for review today.",
+                            color    = ReaderColors.textWarm,
+                            fontSize = 15.sp
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            "Complete a quiz to add cards to your deck.",
+                            color    = ReaderColors.textDimmed,
+                            fontSize = 13.sp
+                        )
+                        Spacer(Modifier.height(16.dp))
+                        OutlinedButton(
+                            onClick  = { reviewBookId = null; viewModel.clearReview() },
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text("Done") }
+                    }
+                    is ReviewState.Active -> {
+                        val card    = rs.card
+                        val correct = card.answerIndex
+                        Text(
+                            "Card ${rs.cardIndex + 1} of ${rs.totalCards}",
+                            color    = ReaderColors.textDimmed,
+                            fontSize = 12.sp
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            card.question,
+                            color      = ReaderColors.textWarm,
+                            fontWeight = FontWeight.Bold,
+                            fontSize   = 15.sp
+                        )
+                        Spacer(Modifier.height(12.dp))
+                        card.options.forEachIndexed { idx, option ->
+                            val containerColor = when {
+                                rs.picked == null                          -> MaterialTheme.colorScheme.surfaceVariant
+                                idx == correct                             -> MaterialTheme.colorScheme.primaryContainer
+                                idx == rs.picked && rs.picked != correct  -> MaterialTheme.colorScheme.errorContainer
+                                else                                       -> MaterialTheme.colorScheme.surfaceVariant
+                            }
+                            Surface(
+                                modifier  = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp),
+                                shape     = androidx.compose.foundation.shape.RoundedCornerShape(10.dp),
+                                color     = containerColor,
+                                onClick   = { if (rs.picked == null) viewModel.answerReview(idx) }
+                            ) {
+                                Text(
+                                    option,
+                                    modifier   = Modifier.padding(12.dp),
+                                    color      = MaterialTheme.colorScheme.onSurface,
+                                    fontSize   = 13.sp,
+                                    lineHeight = 18.sp
+                                )
+                            }
+                        }
+                        if (rs.picked != null) {
+                            Spacer(Modifier.height(16.dp))
+                            val wasCorrect = rs.picked == correct
+                            Text(
+                                if (wasCorrect) "Correct!" else "Incorrect — see highlighted answer",
+                                color      = if (wasCorrect) MaterialTheme.colorScheme.primary
+                                             else            MaterialTheme.colorScheme.error,
+                                fontWeight = FontWeight.Bold,
+                                fontSize   = 14.sp
+                            )
+                            Spacer(Modifier.height(12.dp))
+                            Button(
+                                onClick  = { viewModel.nextReview() },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors   = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.primary
+                                )
+                            ) {
+                                Text(if (rs.cardIndex + 1 < rs.totalCards) "Next Card" else "See Results")
+                            }
+                        }
+                    }
+                    is ReviewState.Complete -> {
+                        val pct = (rs.correct * 100) / rs.reviewed.coerceAtLeast(1)
+                        Text(
+                            "Session Complete!",
+                            color      = ReaderColors.textWarm,
+                            fontWeight = FontWeight.Bold,
+                            fontSize   = 20.sp
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            "${rs.correct} / ${rs.reviewed} correct  ($pct%)",
+                            color      = MaterialTheme.colorScheme.primary,
+                            fontSize   = 18.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            when {
+                                pct == 100 -> "Perfect! All cards pushed further out."
+                                pct >= 66  -> "Good session — most cards scheduled for later."
+                                pct >= 33  -> "Some cards reset to tomorrow. Keep reviewing."
+                                else       -> "Tough session. Cards reset — review again soon."
+                            },
+                            color    = ReaderColors.textDimmed,
+                            fontSize = 13.sp
+                        )
+                        Spacer(Modifier.height(20.dp))
+                        Button(
+                            onClick  = { reviewBookId = null; viewModel.clearReview() },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors   = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                        ) { Text("Done") }
+                    }
+                }
+            }
+        }
+    }
+
     // ── Format picker bottom sheet ────────────────────────────────────────
     if (showFormatSheet) {
         ModalBottomSheet(
@@ -514,6 +668,12 @@ fun LibraryScreen(
                                 quizBookId    = book.id
                                 quizBookTitle = book.title
                                 viewModel.fetchQuiz(book.id)
+                            },
+                            dueCount  = dueCountByBook[book.id] ?: 0,
+                            onReview  = {
+                                reviewBookId    = book.id
+                                reviewBookTitle = book.title
+                                viewModel.startReview(book.id)
                             }
                         )
                         HorizontalDivider(color = ReaderColors.guideLine)

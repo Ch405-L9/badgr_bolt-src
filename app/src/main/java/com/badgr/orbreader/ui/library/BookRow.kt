@@ -18,6 +18,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.badgr.orbreader.data.model.Book
 import com.badgr.orbreader.ui.theme.ReaderColors
@@ -31,7 +32,9 @@ fun BookRow(
     onClick   : () -> Unit,
     onDelete  : () -> Unit,
     onSummary : () -> Unit = {},
-    onQuiz    : () -> Unit = {}
+    onQuiz    : () -> Unit = {},
+    dueCount  : Int        = 0,
+    onReview  : () -> Unit = {}
 ) {
     var showDeleteDialog by remember { mutableStateOf(false) }
 
@@ -148,6 +151,21 @@ fun BookRow(
                     contentDescription = "Quiz for ${book.title}",
                     tint               = MaterialTheme.colorScheme.tertiary
                 )
+            }
+            if (dueCount > 0) {
+                Surface(
+                    shape    = RoundedCornerShape(12.dp),
+                    color    = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.clickable(onClick = onReview)
+                ) {
+                    Text(
+                        "$dueCount due",
+                        modifier   = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        color      = MaterialTheme.colorScheme.onError,
+                        fontSize   = 10.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
             }
             IconButton(onClick = { showDeleteDialog = true }) {
                 Icon(
