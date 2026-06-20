@@ -64,21 +64,38 @@ class InAppPurchaseManager(
     }
 
     suspend fun queryExistingPurchases() {
+        var foundActive = false
+
         val subResult = billingClient.queryPurchasesAsync(
             QueryPurchasesParams.newBuilder()
                 .setProductType(BillingClient.ProductType.SUBS)
                 .build()
         )
         if (subResult.billingResult.responseCode == BillingClient.BillingResponseCode.OK) {
-            handlePurchaseList(subResult.purchasesList)
+            val active = subResult.purchasesList.filter {
+                it.purchaseState == Purchase.PurchaseState.PURCHASED
+            }
+            if (active.isNotEmpty()) { foundActive = true; handlePurchaseList(active) }
         }
+
         val inappResult = billingClient.queryPurchasesAsync(
             QueryPurchasesParams.newBuilder()
                 .setProductType(BillingClient.ProductType.INAPP)
                 .build()
         )
         if (inappResult.billingResult.responseCode == BillingClient.BillingResponseCode.OK) {
-            handlePurchaseList(inappResult.purchasesList)
+            val active = inappResult.purchasesList.filter {
+                it.purchaseState == Purchase.PurchaseState.PURCHASED
+            }
+            if (active.isNotEmpty()) { foundActive = true; handlePurchaseList(active) }
+        }
+
+        // Both queries succeeded and found no active purchases — subscription may have expired.
+        if (!foundActive) {
+            withContext(Dispatchers.Main) {
+                _isPro.value = false
+                _activeSku.value = null
+            }
         }
     }
 
@@ -187,6 +204,7 @@ class InAppPurchaseManager(
                 if (ackOk) {
                     withContext(Dispatchers.Main) {
                         _isPro.value = true
+                        _activeSku.value = purchase.products.firstOrNull()
                         onPurchaseSuccess()
                     }
                 }

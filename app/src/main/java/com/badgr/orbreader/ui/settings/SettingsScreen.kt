@@ -18,6 +18,7 @@ import androidx.compose.ui.platform.LocalContext
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.ui.res.stringResource
+import com.badgr.orbreader.BuildConfig
 import com.badgr.orbreader.R
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.badgr.orbreader.billing.ProGate
@@ -46,7 +47,36 @@ fun SettingsScreen(
     vm: SettingsViewModel = viewModel()
 ) {
     val prefs by vm.prefs.collectAsState()
+    val isPro by ProGate.isProFlow.collectAsState()
     val context = LocalContext.current
+
+    var showHelpDialog by remember { mutableStateOf(false) }
+
+    if (showHelpDialog) {
+        AlertDialog(
+            onDismissRequest = { showHelpDialog = false },
+            containerColor   = MaterialTheme.colorScheme.surface,
+            title = { Text("Help & FAQ", fontWeight = FontWeight.Bold) },
+            text  = {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("• Tap + in Library to import TXT, PDF, EPUB, or DOCX", fontSize = 13.sp, color = ReaderColors.textWarm)
+                    Text("• Tap Play/Pause to start RSVP playback", fontSize = 13.sp, color = ReaderColors.textWarm)
+                    Text("• Drag the slider to seek; skip buttons jump ±10 words", fontSize = 13.sp, color = ReaderColors.textWarm)
+                    Text("• −25 / +25 adjust reading speed (WPM)", fontSize = 13.sp, color = ReaderColors.textWarm)
+                    Text("• Long-press skip buttons to jump chapters", fontSize = 13.sp, color = ReaderColors.textWarm)
+                    Text("• Sign into Account tab to unlock Pro & cloud sync", fontSize = 13.sp, color = ReaderColors.textWarm)
+                    Spacer(Modifier.height(4.dp))
+                    TextButton(
+                        onClick = { vm.resetHelpSeen(); showHelpDialog = false },
+                        colors  = ButtonDefaults.textButtonColors(contentColor = ReaderColors.orpFocal)
+                    ) { Text("Replay App Tour") }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showHelpDialog = false }) { Text("Got it") }
+            }
+        )
+    }
 
     Scaffold(
         containerColor = ReaderColors.background,
@@ -393,7 +423,7 @@ fun SettingsScreen(
             item {
                 SettingSection(title = "Supported Formats") {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                        listOf("TXT", "PDF", "EPUB", "DOCX", "IMAGE").forEach { fmt ->
+                        listOf("TXT", "PDF", "EPUB", "DOCX").forEach { fmt ->
                             Surface(color = ReaderColors.orpFocal.copy(alpha = 0.15f), shape = RoundedCornerShape(6.dp)) {
                                 Text(
                                     fmt,
@@ -404,7 +434,18 @@ fun SettingsScreen(
                                 )
                             }
                         }
+                        Surface(color = ReaderColors.textDimmed.copy(alpha = 0.12f), shape = RoundedCornerShape(6.dp)) {
+                            Text(
+                                "IMAGE*",
+                                modifier   = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                color      = ReaderColors.textDimmed,
+                                fontSize   = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
+                    Spacer(Modifier.height(4.dp))
+                    Text("* IMAGE (OCR) coming soon", color = ReaderColors.textDimmed, fontSize = 11.sp)
                 }
             }
 
@@ -412,23 +453,23 @@ fun SettingsScreen(
             item {
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
-                    color    = if (ProGate.isPro) ReaderColors.orpFocal.copy(alpha = 0.12f) else Color(0xFF2C2040),
+                    color    = if (isPro) ReaderColors.orpFocal.copy(alpha = 0.12f) else Color(0xFF2C2040),
                     shape    = RoundedCornerShape(12.dp)
                 ) {
                     Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
                             Text(
-                                if (ProGate.isPro) "BADGR Bolt Pro - Active" else "Upgrade to Bolt Pro",
-                                color      = if (ProGate.isPro) ReaderColors.orpFocal else ReaderColors.textWarm,
+                                if (isPro) "BADGR Bolt Pro - Active" else "Upgrade to Bolt Pro",
+                                color      = if (isPro) ReaderColors.orpFocal else ReaderColors.textWarm,
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
-                                if (ProGate.isPro) "All features unlocked" else "Stats, cloud sync, unlimited library",
+                                if (isPro) "All features unlocked" else "Stats, cloud sync, unlimited library",
                                 color    = ReaderColors.textDimmed,
                                 fontSize = 12.sp
                             )
                         }
-                        if (!ProGate.isPro) {
+                        if (!isPro) {
                             OutlinedButton(
                                 onClick = onNavigateToAccount,
                                 colors  = ButtonDefaults.outlinedButtonColors(contentColor = ReaderColors.orpFocal)
@@ -468,11 +509,9 @@ fun SettingsScreen(
                         }
 
                         OutlinedButton(
-                            onClick = {
-                                // Placeholder for Help/FAQ
-                            },
+                            onClick  = { showHelpDialog = true },
                             modifier = Modifier.fillMaxWidth(),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = ReaderColors.orpFocal)
+                            colors   = ButtonDefaults.outlinedButtonColors(contentColor = ReaderColors.orpFocal)
                         ) {
                             Text(stringResource(R.string.help_faq))
                         }
@@ -483,7 +522,7 @@ fun SettingsScreen(
             // ── App Version ───────────────────────────────────────────────
             item {
                 Text(
-                    "BADGR Bolt v2.5.2 (build 8)",
+                    "BADGR Bolt v${BuildConfig.VERSION_NAME} (build ${BuildConfig.VERSION_CODE})",
                     color    = ReaderColors.textDimmed,
                     fontSize = 11.sp,
                     modifier = Modifier.padding(bottom = 16.dp)

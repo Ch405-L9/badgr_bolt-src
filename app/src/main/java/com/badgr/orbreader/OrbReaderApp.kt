@@ -88,9 +88,15 @@ class OrbReaderApp : Application() {
                         coverPath = null
                     )
                     
-                    // Save words to file
+                    // Save words atomically — same tmp→rename pattern as BookRepository.saveBook()
                     val wordFile = File(filesDir, "words_$manualId.json")
-                    wordFile.writeText(Gson().toJson(words))
+                    val tmp = File(filesDir, "words_$manualId.json.tmp")
+                    try {
+                        tmp.writeText(Gson().toJson(words))
+                        if (!tmp.renameTo(wordFile)) wordFile.writeText(Gson().toJson(words))
+                    } finally {
+                        if (tmp.exists()) tmp.delete()
+                    }
                     
                     db.bookDao().insertBook(book)
                 } catch (e: Exception) {

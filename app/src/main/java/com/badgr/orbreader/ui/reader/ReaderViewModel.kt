@@ -253,7 +253,7 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun seekTo(index: Int) {
-        _state.update { it.copy(currentIndex = index.coerceIn(0, it.words.lastIndex)) }
+        _state.update { it.copy(currentIndex = index.coerceIn(0, (it.words.size - 1).coerceAtLeast(0))) }
     }
 
     private fun startPlayback() {

@@ -21,8 +21,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.badgr.orbreader.ui.theme.ReaderColors
+import androidx.compose.runtime.collectAsState
 import com.badgr.orbreader.billing.ProGate
+import com.badgr.orbreader.ui.theme.ReaderColors
 
 private data class FormatOption(
     val label   : String,
@@ -48,6 +49,7 @@ fun LibraryScreen(
 ) {
     val books   by viewModel.books.collectAsState()
     val uiState by viewModel.uiState.collectAsState()
+    val isPro   by ProGate.isProFlow.collectAsState()
 
     var showFormatSheet by remember { mutableStateOf(false) }
 
@@ -178,7 +180,7 @@ fun LibraryScreen(
                 title  = { 
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("Library", color = ReaderColors.textWarm, fontWeight = FontWeight.Bold)
-                        if (!ProGate.isPro) {
+                        if (!isPro) {
                             Spacer(Modifier.width(8.dp))
                             Surface(
                                 color = ReaderColors.orpFocal.copy(alpha = 0.15f),

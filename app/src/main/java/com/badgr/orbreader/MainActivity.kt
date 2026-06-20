@@ -20,6 +20,7 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -122,8 +123,10 @@ class MainActivity : ComponentActivity() {
                         modifier = Modifier.padding(innerPadding),
                         color = MaterialTheme.colorScheme.background
                     ) {
-                        val showWalkthrough =
-                            remember { mutableStateOf(!prefs.hasSeenHelp && prefs.hasSeenOnboarding) }
+                        val showWalkthrough = remember { mutableStateOf(false) }
+                        LaunchedEffect(prefs.hasSeenOnboarding, prefs.hasSeenHelp) {
+                            showWalkthrough.value = prefs.hasSeenOnboarding && !prefs.hasSeenHelp
+                        }
 
                         Box(modifier = Modifier.fillMaxSize()) {
                             NavHost(

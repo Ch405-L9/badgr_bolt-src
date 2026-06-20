@@ -50,7 +50,7 @@ object CloudSyncManager {
     fun signOut() {
         Log.d(TAG, "Signing out")
         auth.signOut()
-        ProGate.revokeEntitlement()
+        // Billing entitlement is driven by Google Play independently of Firebase auth — do not revoke here.
     }
 
     /**
@@ -78,7 +78,6 @@ object CloudSyncManager {
         deleteCollectionDocuments(uid, COLLECTION_PROGRESS)
         db.collection(COLLECTION_USERS).document(uid).delete().await()
         user.delete().await()
-        ProGate.revokeEntitlement()
         Log.d(TAG, "Deleted account and cloud data for uid=$uid")
     }
 

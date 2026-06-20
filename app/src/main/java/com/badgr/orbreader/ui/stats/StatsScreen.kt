@@ -39,6 +39,7 @@ fun StatsScreen(
     val snapshot             by vm.snapshot.collectAsState()
     val sessions             by vm.sessions.collectAsState()
     val unlockedAchievements by vm.unlockedAchievements.collectAsState()
+    val isPro                by ProGate.isProFlow.collectAsState()
 
     val unlockedIds = remember(unlockedAchievements) {
         unlockedAchievements.map { it.id }.toSet()
@@ -84,7 +85,7 @@ fun StatsScreen(
         ) {
 
             // ── Pro gate — upgrade CTA for free users ──────────────────
-            if (!ProGate.isPro) {
+            if (!isPro) {
                 item {
                     Spacer(Modifier.height(4.dp))
                     Surface(
@@ -125,7 +126,7 @@ fun StatsScreen(
             }
 
             // ── BOLT RANK ─────────────────────────────────────────────────
-            if (ProGate.isPro) {
+            if (isPro) {
                 item {
                     Spacer(Modifier.height(4.dp))
                     BoltRankCard(rank = snapshot.boltRank)
@@ -133,7 +134,7 @@ fun StatsScreen(
             }
 
             // ── Achievement header (Pro only) ─────────────────────────────
-            if (ProGate.isPro) item {
+            if (isPro) item {
                 Row(
                     Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -154,7 +155,7 @@ fun StatsScreen(
                 }
             }
 
-            if (ProGate.isPro) items(achievementRows) { row ->
+            if (isPro) items(achievementRows) { row ->
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
