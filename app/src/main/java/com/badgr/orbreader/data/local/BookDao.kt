@@ -29,4 +29,10 @@ interface BookDao {
 
     @Query("SELECT COUNT(*) FROM books")
     suspend fun bookCount(): Int
+
+    @Query("UPDATE books SET summary = :summary WHERE id = :bookId")
+    suspend fun updateSummary(bookId: String, summary: String)
+
+    @Query("SELECT summary FROM books WHERE id = :bookId")
+    suspend fun getSummary(bookId: String): String?
 }

@@ -47,11 +47,14 @@ fun LibraryScreen(
     onOpenBook: (bookId: String) -> Unit,
     viewModel : LibraryViewModel = viewModel()
 ) {
-    val books   by viewModel.books.collectAsState()
-    val uiState by viewModel.uiState.collectAsState()
-    val isPro   by ProGate.isProFlow.collectAsState()
+    val books        by viewModel.books.collectAsState()
+    val uiState      by viewModel.uiState.collectAsState()
+    val isPro        by ProGate.isProFlow.collectAsState()
+    val summaryState by viewModel.summaryState.collectAsState()
 
-    var showFormatSheet by remember { mutableStateOf(false) }
+    var showFormatSheet   by remember { mutableStateOf(false) }
+    var summaryBookId     by remember { mutableStateOf<String?>(null) }
+    var summaryBookTitle  by remember { mutableStateOf("") }
 
     // One launcher per format
     val txtPicker  = rememberFilePicker("text/plain")           { u, n -> viewModel.importTxt(u, n) }
@@ -100,6 +103,83 @@ fun LibraryScreen(
                 TextButton(onClick = viewModel::clearError) { Text("Not now") }
             }
         )
+    }
+
+    // ── Summary bottom sheet ──────────────────────────────────────────────
+    if (summaryBookId != null) {
+        ModalBottomSheet(
+            onDismissRequest = { summaryBookId = null; viewModel.clearSummary() },
+            containerColor   = ReaderColors.background
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp)
+                    .padding(bottom = 48.dp)
+            ) {
+                Text(
+                    summaryBookTitle,
+                    color      = ReaderColors.textWarm,
+                    fontWeight = FontWeight.Bold,
+                    fontSize   = 18.sp,
+                    maxLines   = 2
+                )
+                Text(
+                    "AI Summary",
+                    color    = ReaderColors.textDimmed,
+                    fontSize = 12.sp
+                )
+                Spacer(Modifier.height(16.dp))
+                when (val s = summaryState) {
+                    is SummaryState.Idle -> {
+                        Button(
+                            onClick  = { viewModel.fetchSummary(summaryBookId!!) },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors   = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary
+                            )
+                        ) { Text("Generate Summary") }
+                    }
+                    is SummaryState.Loading -> {
+                        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                        }
+                    }
+                    is SummaryState.Ready -> {
+                        Text(
+                            s.text,
+                            color    = ReaderColors.textWarm,
+                            fontSize = 14.sp,
+                            lineHeight = 22.sp
+                        )
+                        Spacer(Modifier.height(20.dp))
+                        Button(
+                            onClick  = {
+                                summaryBookId?.let { onOpenBook(it) }
+                                summaryBookId = null
+                                viewModel.clearSummary()
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors   = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary
+                            )
+                        ) { Text("Open Book") }
+                    }
+                    is SummaryState.Error -> {
+                        Text(
+                            s.message,
+                            color    = MaterialTheme.colorScheme.error,
+                            fontSize = 13.sp
+                        )
+                        Spacer(Modifier.height(12.dp))
+                        OutlinedButton(
+                            onClick  = { viewModel.fetchSummary(summaryBookId!!) },
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text("Retry") }
+                    }
+                }
+            }
+        }
     }
 
     // ── Format picker bottom sheet ────────────────────────────────────────
@@ -264,9 +344,15 @@ fun LibraryScreen(
                 LazyColumn {
                     items(books, key = { it.id }) { book ->
                         BookRow(
-                            book     = book,
-                            onClick  = { onOpenBook(book.id) },
-                            onDelete = { viewModel.deleteBook(book) }
+                            book      = book,
+                            onClick   = { onOpenBook(book.id) },
+                            onDelete  = { viewModel.deleteBook(book) },
+                            onSummary = {
+                                summaryBookId    = book.id
+                                summaryBookTitle = book.title
+                                viewModel.clearSummary()
+                                viewModel.fetchSummary(book.id)
+                            }
                         )
                         HorizontalDivider(color = ReaderColors.guideLine)
                     }

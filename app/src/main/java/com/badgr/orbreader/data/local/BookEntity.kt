@@ -13,7 +13,8 @@ data class BookEntity(
     val wordCount: Int,
     val createdAt: Long,
     val currentWordIndex: Int = 0,
-    val coverPath: String? = null
+    val coverPath: String? = null,
+    val summary: String? = null
 ) {
     fun toDomain() = Book(
         id               = id,

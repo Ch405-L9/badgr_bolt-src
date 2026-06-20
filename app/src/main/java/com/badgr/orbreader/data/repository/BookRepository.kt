@@ -193,6 +193,32 @@ class BookRepository(
         bookDao.insertBook(BookEntity.fromDomain(book))
     }
 
+    suspend fun fetchAndCacheSummary(bookId: String): Result<String> = withContext(Dispatchers.IO) {
+        // Return cached summary if already fetched.
+        bookDao.getSummary(bookId)?.let { return@withContext Result.success(it) }
+
+        val words = loadWords(bookId)
+        if (words.isEmpty()) return@withContext Result.failure(Exception("No text found for this book."))
+
+        // Cap at 4000 words — backend enforces the same limit.
+        val text = words.take(4000).joinToString(" ")
+        try {
+            val response = ApiClient.summarizeApi.summarize(
+                com.badgr.orbreader.data.remote.SummarizeRequest(text = text)
+            )
+            if (response.isSuccessful) {
+                val summary = response.body()?.summary
+                    ?: return@withContext Result.failure(Exception("Empty summary from server."))
+                bookDao.updateSummary(bookId, summary)
+                Result.success(summary)
+            } else {
+                Result.failure(Exception("Server error ${response.code()}"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     private fun wordFile(bookId: String): File =
         File(context.filesDir, "words_$bookId.json")
 

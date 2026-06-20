@@ -25,15 +25,16 @@ object ApiClient {
             .build()
     }
 
-    val convertApi: ConvertApi by lazy {
-        // Ensure BASE_URL ends with a slash – Retrofit requires it.
+    private val retrofit: Retrofit by lazy {
         val baseUrl = ApiConfig.BASE_URL.trimEnd('/') + "/"
-
         Retrofit.Builder()
             .baseUrl(baseUrl)
             .client(okHttpClient)
             .addConverterFactory(GsonConverterFactory.create())
             .build()
-            .create(ConvertApi::class.java)
     }
+
+    val convertApi: ConvertApi by lazy { retrofit.create(ConvertApi::class.java) }
+
+    val summarizeApi: SummarizeApi by lazy { retrofit.create(SummarizeApi::class.java) }
 }

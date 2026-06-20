@@ -22,6 +22,13 @@ sealed class LibraryUiState {
     object BookLimitReached : LibraryUiState()
 }
 
+sealed class SummaryState {
+    object Idle : SummaryState()
+    object Loading : SummaryState()
+    data class Ready(val text: String) : SummaryState()
+    data class Error(val message: String) : SummaryState()
+}
+
 class LibraryViewModel(application: Application) : AndroidViewModel(application) {
 
     private companion object {
@@ -47,6 +54,22 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
     fun importImage(uri: Uri, fileName: String) = launchImport(fileName) { repo.importRemote(uri, fileName, FileType.IMAGE, "image/*") }
 
     fun deleteBook(book: Book) = viewModelScope.launch { repo.deleteBook(book) }
+
+    private val _summaryState = MutableStateFlow<SummaryState>(SummaryState.Idle)
+    val summaryState: StateFlow<SummaryState> = _summaryState.asStateFlow()
+
+    fun fetchSummary(bookId: String) {
+        viewModelScope.launch {
+            _summaryState.value = SummaryState.Loading
+            val result = repo.fetchAndCacheSummary(bookId)
+            _summaryState.value = result.fold(
+                onSuccess = { SummaryState.Ready(it) },
+                onFailure = { SummaryState.Error(it.localizedMessage ?: "Failed to generate summary.") }
+            )
+        }
+    }
+
+    fun clearSummary() { _summaryState.value = SummaryState.Idle }
 
     fun clearError() { _uiState.value = LibraryUiState.Idle }
 
