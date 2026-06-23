@@ -228,7 +228,7 @@
   <header>
     <div class="badge">BADGRTechnologies LLC</div>
     <h1>Privacy Policy<br/><span>BADGR Bolt</span></h1>
-    <p class="meta">Effective date: 2026-03-14 &nbsp;·&nbsp; Last updated: 2026-03-14</p>
+    <p class="meta">Effective date: 2026-03-14 &nbsp;·&nbsp; Last updated: 2026-06-23</p>
   </header>
 
   <!-- 1. Overview -->
@@ -267,6 +267,10 @@
         <div class="data-key">File conversion</div>
         <div class="data-val">When you import a PDF or EPUB, the file is sent to our conversion server to extract text. The file and extracted text are processed in memory and are <strong>not stored</strong> on our servers after the response is returned.</div>
       </div>
+      <div class="data-row">
+        <div class="data-key">AI processing (Pro)</div>
+        <div class="data-val">When a Pro subscriber uses AI Book Summary or Comprehension Quiz, book text is transmitted over an encrypted HTTPS connection to our backend server for natural language processing. The content is processed in memory and is <strong>not stored</strong> on our servers. The generated summary or quiz questions are stored locally on your device only. This feature is opt-in — no content is transmitted unless you explicitly request it.</div>
+      </div>
     </div>
   </section>
 
@@ -275,7 +279,6 @@
     <h2>Data We Do Not Collect</h2>
     <p>BADGR Bolt does not collect, store, or transmit any of the following:</p>
     <div class="no-collect">
-      <span class="tag">Book content</span>
       <span class="tag">Payment information</span>
       <span class="tag">Location data</span>
       <span class="tag">Device identifiers</span>
@@ -284,7 +287,7 @@
       <span class="tag">Browsing history</span>
       <span class="tag">Biometric data</span>
     </div>
-    <p style="margin-top:0.85rem;">Payment processing for Pro subscriptions and one-time purchases is handled entirely by Google Play. We never receive or store your payment details.</p>
+    <p style="margin-top:0.85rem;">Book content is transmitted to our servers only when you use AI features (AI Book Summary, Comprehension Quiz) and is never stored after processing. See "Data We Collect" above for details. Payment processing for Pro subscriptions and one-time purchases is handled entirely by Google Play. We never receive or store your payment details.</p>
   </section>
 
   <!-- 4. How we use data -->
@@ -301,6 +304,10 @@
     <div class="card">
       <div class="card-title">Stability and Improvement</div>
       <p>Crash logs and anonymous analytics help us identify bugs and prioritise features. No personally identifiable data is included in these reports.</p>
+    </div>
+    <div class="card">
+      <div class="card-title">AI Features (Pro)</div>
+      <p>When you use AI Book Summary or Comprehension Quiz, the relevant book text is sent to our backend server to generate results. This processing is performed on demand only — no content is transmitted automatically. Results are returned to your device and stored locally; no content is retained on our servers.</p>
     </div>
   </section>
 
@@ -331,7 +338,7 @@
       </div>
       <div class="data-row">
         <div class="data-key">BADGR Text Service</div>
-        <div class="data-val">Our own PDF/EPUB conversion backend. Files are processed in memory and not retained.</div>
+        <div class="data-val">Our own backend server hosted on Render.com. Used for PDF/EPUB file conversion and AI feature processing (AI Book Summary, Comprehension Quiz). All transmissions are encrypted via HTTPS. Content is processed in memory and not retained after the response is returned.</div>
       </div>
     </div>
   </section>
@@ -389,7 +396,7 @@
 
   <footer>
     <span>© 2026 BADGRTechnologies LLC. All rights reserved.</span>
-    <span>BADGR Bolt · Android · v2.3.x</span>
+    <span>BADGR Bolt · Android · v3.1.4</span>
   </footer>
 
 </div>
