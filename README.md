@@ -23,6 +23,11 @@ better comprehension.
 | Google Play Billing          | Complete     | 2.3.6    | Monthly subscription + lifetime purchase |
 | Pro Entitlement Persistence  | Complete     | 2.3.3    | DataStore-backed, survives process death |
 | Purchase Restoration         | Complete     | 3.1.3    | ITEM_ALREADY_OWNED silently restores Pro  |
+| AI Book Summary              | Complete     | 3.2.0    | Extractive NLP via /summarize; Pro only  |
+| Comprehension Quiz           | Complete     | 3.2.0    | 3-question MCQ from book text; Pro only  |
+| Spaced Repetition Deck       | Complete     | 3.2.0    | SM-2 scheduling on quiz questions        |
+| Book Categorization          | Complete     | 3.2.0    | Auto genre sections on import; Pro only  |
+| Privacy / Terms Footer Links | Complete     | 3.2.0    | AccountScreen footer → badgrtech.com     |
 | Free Book Limit (5)          | Complete     | 2.3.6    | Upgrade dialog on limit reached          |
 | Performance Tracker          | Complete     | 2.4.0    | Session logging, WPM, active time        |
 | Achievements (20)            | Complete     | 2.4.0    | 5 categories, Room-persisted             |
@@ -74,11 +79,14 @@ better comprehension.
 | `ReadingSessionRepository.kt` | Session recording, streak, Bolt Rank, achievement dispatch |
 | `BookDatabase.kt` | Room database, schema v5, migrations 1 through 5 |
 
-### Database Schema (v5)
+### Database Schema (v8)
 
-- `books`: id, title, fileType, wordCount, createdAt, currentWordIndex, coverPath
+- `books`: id, title, fileType, wordCount, createdAt, currentWordIndex, coverPath, category
 - `reading_sessions`: id, bookId, bookTitle, wordsRead, durationSeconds, avgWpm, rewindCount, timestamp
 - `achievements`: id, unlockedAt
+- `book_summaries`: id, bookId, summary, createdAt
+- `quiz_questions`: id, bookId, question, optionA-D, correctAnswer, createdAt
+- `spaced_rep_cards`: id, questionId, interval, easeFactor, nextReviewAt, repetitions
 
 ---
 
