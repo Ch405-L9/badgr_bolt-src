@@ -13,11 +13,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -408,7 +410,11 @@ fun AccountScreen(vm: AccountViewModel = viewModel()) {
                             onValueChange   = { email = it },
                             label           = { Text("Email") },
                             singleLine      = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType   = KeyboardType.Email,
+                                capitalization = KeyboardCapitalization.None,
+                                autoCorrect    = false
+                            ),
                             modifier        = Modifier.fillMaxWidth(),
                             colors          = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor   = MaterialTheme.colorScheme.primary,
@@ -517,6 +523,40 @@ fun AccountScreen(vm: AccountViewModel = viewModel()) {
                         }
 
                         Spacer(Modifier.height(16.dp))
+
+                        // ── Legal links ──────────────────────────────────
+                        val uriHandler = LocalUriHandler.current
+                        Row(
+                            modifier              = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            TextButton(onClick = {
+                                uriHandler.openUri("https://badgrtech.com/privacy/badgr-bolt")
+                            }) {
+                                Text(
+                                    "Privacy Policy",
+                                    color    = ReaderColors.textDimmed,
+                                    fontSize = 11.sp
+                                )
+                            }
+                            Text(
+                                "·",
+                                color    = ReaderColors.textDimmed,
+                                fontSize = 11.sp,
+                                modifier = Modifier.align(Alignment.CenterVertically)
+                            )
+                            TextButton(onClick = {
+                                uriHandler.openUri("https://badgrtech.com/terms")
+                            }) {
+                                Text(
+                                    "Terms",
+                                    color    = ReaderColors.textDimmed,
+                                    fontSize = 11.sp
+                                )
+                            }
+                        }
+
+                        Spacer(Modifier.height(8.dp))
                     }
                 }
             }
