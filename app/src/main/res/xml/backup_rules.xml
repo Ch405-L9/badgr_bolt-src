@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <!-- Exclude book database — large, version-specific, users reimport. -->
+    <!-- DataStore (preferences, IS_PRO, reading settings) backed up by default. -->
+    <exclude domain="database" path="orbreader.db" />
+</full-backup-content>

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<data-extraction-rules>
+    <cloud-backup>
+        <!-- Exclude book database — large, version-specific, users reimport. -->
+        <!-- DataStore (preferences, IS_PRO, reading settings) included by default. -->
+        <exclude domain="database" path="orbreader.db" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="database" path="orbreader.db" />
+    </device-transfer>
+</data-extraction-rules>
