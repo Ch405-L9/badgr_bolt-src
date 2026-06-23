@@ -18,7 +18,7 @@ val keystoreProps = Properties().also { props ->
 
 android {
     namespace  = "com.badgr.orbreader"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId  = "com.badgr.orbreader"
@@ -53,6 +53,7 @@ android {
     }
     buildTypes {
         release {
+            isDebuggable = false
             signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = true
             isShrinkResources = true

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Required for HTTP traffic to the local backend during development -->
+    <!-- Required for HTTPS network traffic (Firebase, backend API, Play Billing) -->
     <uses-permission android:name="android.permission.INTERNET" />
 
     <application

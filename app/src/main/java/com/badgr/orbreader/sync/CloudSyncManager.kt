@@ -1,6 +1,7 @@
 package com.badgr.orbreader.sync
 
 import android.util.Log
+import com.badgr.orbreader.BuildConfig
 import com.badgr.orbreader.billing.ProGate
 import com.badgr.orbreader.data.local.BookDao
 import com.badgr.orbreader.data.local.BookEntity
@@ -33,16 +34,16 @@ object CloudSyncManager {
         get() = currentUser?.isEmailVerified == true
 
     suspend fun signUp(email: String, password: String): FirebaseUser {
-        Log.d(TAG, "Attempting signUp for $email")
+        if (BuildConfig.DEBUG) Log.d(TAG, "Attempting signUp for $email")
         val result = auth.createUserWithEmailAndPassword(email.trim(), password).await()
         val user   = result.user ?: error("Sign-up succeeded but user was null.")
         user.sendEmailVerification().await()
-        Log.d(TAG, "Verification email sent to $email")
+        if (BuildConfig.DEBUG) Log.d(TAG, "Verification email sent to $email")
         return user
     }
 
     suspend fun signIn(email: String, password: String): FirebaseUser {
-        Log.d(TAG, "Attempting signIn for $email")
+        if (BuildConfig.DEBUG) Log.d(TAG, "Attempting signIn for $email")
         val result = auth.signInWithEmailAndPassword(email.trim(), password).await()
         return result.user ?: error("Sign-in failed.")
     }
@@ -61,7 +62,7 @@ object CloudSyncManager {
         val user = currentUser ?: return
         if (!user.isEmailVerified) {
             user.sendEmailVerification().await()
-            Log.d(TAG, "Verification email resent to ${user.email}")
+            if (BuildConfig.DEBUG) Log.d(TAG, "Verification email resent to ${user.email}")
         }
     }
 
