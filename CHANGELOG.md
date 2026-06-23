@@ -1,3 +1,20 @@
+## [3.2.0] — 2026-06-23
+
+### Added
+- AccountScreen: Privacy Policy and Terms of Service footer links — opens `badgrtech.com/privacy/badgr-bolt` and `badgrtech.com/terms` in browser via `LocalUriHandler`
+- BookDetailScreen / LibraryScreen: AI book summary — extractive NLP via `/summarize` endpoint; Pro feature; result cached in Room (DB v6)
+- QuizScreen: Comprehension quiz — 3-question MCQ generated from book text via `/quiz` endpoint; Pro feature (DB v7)
+- SpacedRepetitionScreen: SM-2 spaced repetition review deck on quiz questions — scheduling persisted in Room (DB v8)
+- LibraryScreen: Book categorization for Pro — auto-classifies library into genre sections on import; DB v8
+
+### Fixed
+- CategoryChip: Touch target expanded to 48dp minimum — meets WCAG 2.5.5 accessibility requirement
+- AndroidManifest: Explicit `android:dataExtractionRules` backup rules — book database excluded from Android Backup and cloud sync; user credentials not backed up
+
+### Security / Compliance
+- Production readiness audit pass — 5 audit documents added to `docs/`
+- Legal docs updated — Data Safety form guide for AI features
+
 ## [3.1.4] — 2026-06-19
 
 ### Fixed
