@@ -6,10 +6,16 @@ import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.shape.RoundedCornerShape
+import com.badgr.orbreader.data.model.Book
+import com.badgr.orbreader.util.BookCategorizer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.*
@@ -41,7 +47,7 @@ private val FORMAT_OPTIONS = listOf(
     FormatOption("IMAGE", "image/*",                             "🖼",  "OCR — Coming soon", enabled = false)
 )
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun LibraryScreen(
     onOpenBook: (bookId: String) -> Unit,
@@ -55,13 +61,23 @@ fun LibraryScreen(
     val reviewState    by viewModel.reviewState.collectAsState()
     val dueCountByBook by viewModel.dueCountByBook.collectAsState()
 
-    var showFormatSheet   by remember { mutableStateOf(false) }
-    var summaryBookId     by remember { mutableStateOf<String?>(null) }
-    var summaryBookTitle  by remember { mutableStateOf("") }
-    var quizBookId        by remember { mutableStateOf<String?>(null) }
-    var quizBookTitle     by remember { mutableStateOf("") }
-    var reviewBookId      by remember { mutableStateOf<String?>(null) }
-    var reviewBookTitle   by remember { mutableStateOf("") }
+    var showFormatSheet     by remember { mutableStateOf(false) }
+    var summaryBookId       by remember { mutableStateOf<String?>(null) }
+    var summaryBookTitle    by remember { mutableStateOf("") }
+    var quizBookId          by remember { mutableStateOf<String?>(null) }
+    var quizBookTitle       by remember { mutableStateOf("") }
+    var reviewBookId        by remember { mutableStateOf<String?>(null) }
+    var reviewBookTitle     by remember { mutableStateOf("") }
+    var categoryEditBook    by remember { mutableStateOf<Book?>(null) }
+
+    val groupedBooks = remember(books, isPro) {
+        if (isPro && books.isNotEmpty()) {
+            BookCategorizer.ALL_CATEGORIES.mapNotNull { cat ->
+                val inCat = books.filter { (it.category ?: BookCategorizer.OTHER) == cat }
+                if (inCat.isEmpty()) null else cat to inCat
+            }
+        } else emptyList()
+    }
 
     // One launcher per format
     val txtPicker  = rememberFilePicker("text/plain")           { u, n -> viewModel.importTxt(u, n) }
@@ -108,6 +124,45 @@ fun LibraryScreen(
             },
             dismissButton = {
                 TextButton(onClick = viewModel::clearError) { Text("Not now") }
+            }
+        )
+    }
+
+    // ── Category picker dialog ────────────────────────────────────────────
+    categoryEditBook?.let { book ->
+        AlertDialog(
+            onDismissRequest = { categoryEditBook = null },
+            containerColor   = MaterialTheme.colorScheme.surface,
+            title = {
+                Text("Set category", fontWeight = FontWeight.Bold,
+                     color = MaterialTheme.colorScheme.onSurface)
+            },
+            text = {
+                Column {
+                    BookCategorizer.ALL_CATEGORIES.forEach { cat ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    viewModel.updateCategory(book.id, cat)
+                                    categoryEditBook = null
+                                }
+                                .padding(vertical = 10.dp, horizontal = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(
+                                selected = (book.category ?: BookCategorizer.NON_FICTION) == cat,
+                                onClick  = null
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(cat, color = MaterialTheme.colorScheme.onSurface)
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { categoryEditBook = null }) { Text("Cancel") }
             }
         )
     }
@@ -651,30 +706,76 @@ fun LibraryScreen(
                         )
                     }
                 }
+            } else if (isPro && groupedBooks.isNotEmpty()) {
+                LazyColumn {
+                    groupedBooks.forEach { (sectionTitle, sectionBooks) ->
+                        stickyHeader(key = "header_$sectionTitle") {
+                            Surface(color = ReaderColors.background.copy(alpha = 0.97f)) {
+                                Text(
+                                    text     = sectionTitle,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 6.dp),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color    = ReaderColors.orpFocal,
+                                    letterSpacing = 0.08.sp
+                                )
+                            }
+                        }
+                        items(sectionBooks, key = { it.id }) { book ->
+                            BookRow(
+                                book           = book,
+                                onClick        = { onOpenBook(book.id) },
+                                onDelete       = { viewModel.deleteBook(book) },
+                                onSummary      = {
+                                    summaryBookId    = book.id
+                                    summaryBookTitle = book.title
+                                    viewModel.clearSummary()
+                                    viewModel.fetchSummary(book.id)
+                                },
+                                onQuiz         = {
+                                    quizBookId    = book.id
+                                    quizBookTitle = book.title
+                                    viewModel.fetchQuiz(book.id)
+                                },
+                                dueCount       = dueCountByBook[book.id] ?: 0,
+                                onReview       = {
+                                    reviewBookId    = book.id
+                                    reviewBookTitle = book.title
+                                    viewModel.startReview(book.id)
+                                },
+                                onEditCategory = { categoryEditBook = book }
+                            )
+                            HorizontalDivider(color = ReaderColors.guideLine)
+                        }
+                    }
+                }
             } else {
                 LazyColumn {
                     items(books, key = { it.id }) { book ->
                         BookRow(
-                            book      = book,
-                            onClick   = { onOpenBook(book.id) },
-                            onDelete  = { viewModel.deleteBook(book) },
-                            onSummary = {
+                            book           = book,
+                            onClick        = { onOpenBook(book.id) },
+                            onDelete       = { viewModel.deleteBook(book) },
+                            onSummary      = {
                                 summaryBookId    = book.id
                                 summaryBookTitle = book.title
                                 viewModel.clearSummary()
                                 viewModel.fetchSummary(book.id)
                             },
-                            onQuiz    = {
+                            onQuiz         = {
                                 quizBookId    = book.id
                                 quizBookTitle = book.title
                                 viewModel.fetchQuiz(book.id)
                             },
-                            dueCount  = dueCountByBook[book.id] ?: 0,
-                            onReview  = {
+                            dueCount       = dueCountByBook[book.id] ?: 0,
+                            onReview       = {
                                 reviewBookId    = book.id
                                 reviewBookTitle = book.title
                                 viewModel.startReview(book.id)
-                            }
+                            },
+                            onEditCategory = { categoryEditBook = book }
                         )
                         HorizontalDivider(color = ReaderColors.guideLine)
                     }

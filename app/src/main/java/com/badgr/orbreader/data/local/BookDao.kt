@@ -35,4 +35,7 @@ interface BookDao {
 
     @Query("SELECT summary FROM books WHERE id = :bookId")
     suspend fun getSummary(bookId: String): String?
+
+    @Query("UPDATE books SET category = :category WHERE id = :bookId")
+    suspend fun updateCategory(bookId: String, category: String)
 }

@@ -103,6 +103,10 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
         withContext(Dispatchers.IO) { srsCardDao.deleteCardsByBook(book.id) }
     }
 
+    fun updateCategory(bookId: String, category: String) = viewModelScope.launch {
+        repo.updateCategory(bookId, category)
+    }
+
     private val _summaryState = MutableStateFlow<SummaryState>(SummaryState.Idle)
     val summaryState: StateFlow<SummaryState> = _summaryState.asStateFlow()
 

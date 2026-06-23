@@ -10,5 +10,6 @@ data class Book(
     val fileType  : FileType,
     val wordCount : Int,
     val createdAt : Long     = System.currentTimeMillis(),
-    val coverPath : String?  = null
+    val coverPath : String?  = null,
+    val category  : String?  = null
 )

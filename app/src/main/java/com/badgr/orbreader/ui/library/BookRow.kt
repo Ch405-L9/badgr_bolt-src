@@ -3,6 +3,7 @@ package com.badgr.orbreader.ui.library
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.MenuBook
@@ -28,13 +29,14 @@ import java.util.*
 
 @Composable
 fun BookRow(
-    book      : Book,
-    onClick   : () -> Unit,
-    onDelete  : () -> Unit,
-    onSummary : () -> Unit = {},
-    onQuiz    : () -> Unit = {},
-    dueCount  : Int        = 0,
-    onReview  : () -> Unit = {}
+    book           : Book,
+    onClick        : () -> Unit,
+    onDelete       : () -> Unit,
+    onSummary      : () -> Unit = {},
+    onQuiz         : () -> Unit = {},
+    dueCount       : Int        = 0,
+    onReview       : () -> Unit = {},
+    onEditCategory : () -> Unit = {}
 ) {
     var showDeleteDialog by remember { mutableStateOf(false) }
 
@@ -136,6 +138,15 @@ fun BookRow(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
+                book.category?.let { cat ->
+                    Spacer(Modifier.height(3.dp))
+                    Text(
+                        text     = cat,
+                        fontSize = 10.sp,
+                        color    = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f),
+                        modifier = Modifier.clickable(onClick = onEditCategory)
+                    )
+                }
             }
 
             IconButton(onClick = onSummary) {

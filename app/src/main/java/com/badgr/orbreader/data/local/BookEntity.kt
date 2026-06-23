@@ -14,25 +14,28 @@ data class BookEntity(
     val createdAt: Long,
     val currentWordIndex: Int = 0,
     val coverPath: String? = null,
-    val summary: String? = null
+    val summary: String? = null,
+    val category: String? = null
 ) {
     fun toDomain() = Book(
-        id               = id,
-        title            = title,
-        fileType         = FileType.valueOf(fileType),
-        wordCount        = wordCount,
-        createdAt        = createdAt,
-        coverPath        = coverPath
+        id        = id,
+        title     = title,
+        fileType  = FileType.valueOf(fileType),
+        wordCount = wordCount,
+        createdAt = createdAt,
+        coverPath = coverPath,
+        category  = category
     )
 
     companion object {
         fun fromDomain(book: Book) = BookEntity(
-            id               = book.id,
-            title            = book.title,
-            fileType         = book.fileType.name,
-            wordCount        = book.wordCount,
-            createdAt        = book.createdAt,
-            coverPath        = book.coverPath
+            id        = book.id,
+            title     = book.title,
+            fileType  = book.fileType.name,
+            wordCount = book.wordCount,
+            createdAt = book.createdAt,
+            coverPath = book.coverPath,
+            category  = book.category
         )
     }
 }

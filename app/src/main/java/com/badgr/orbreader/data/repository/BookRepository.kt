@@ -10,6 +10,7 @@ import com.badgr.orbreader.data.local.BookEntity
 import com.badgr.orbreader.data.model.Book
 import com.badgr.orbreader.data.model.FileType
 import com.badgr.orbreader.data.remote.ApiClient
+import com.badgr.orbreader.util.BookCategorizer
 import com.badgr.orbreader.util.CoverExtractor
 import com.badgr.orbreader.util.EpubMetadata
 import com.badgr.orbreader.util.WordTokenizer
@@ -55,7 +56,8 @@ class BookRepository(
                     title     = fileName,
                     fileType  = FileType.TXT,
                     wordCount = words.size,
-                    coverPath = null
+                    coverPath = null,
+                    category  = BookCategorizer.categorize(fileName, words.take(200))
                 )
                 saveBook(book, words)
                 ImportResult.Success(book)
@@ -148,11 +150,13 @@ class BookRepository(
                 }
             }
 
+            val category = BookCategorizer.categorize(displayTitle, words.take(200))
             val book = Book(
                 title     = displayTitle,
                 fileType  = fileType,
                 wordCount = words.size,
-                coverPath = coverPath
+                coverPath = coverPath,
+                category  = category
             )
             saveBook(book, words)
             ImportResult.Success(book)
@@ -174,6 +178,10 @@ class BookRepository(
         bookDao.deleteBookById(book.id)
         wordFile(book.id).delete()
         book.coverPath?.let { File(it).delete() }
+    }
+
+    suspend fun updateCategory(bookId: String, category: String) = withContext(Dispatchers.IO) {
+        bookDao.updateCategory(bookId, category)
     }
 
     private suspend fun saveBook(book: Book, words: List<String>) {

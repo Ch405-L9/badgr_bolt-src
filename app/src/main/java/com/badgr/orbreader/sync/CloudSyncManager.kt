@@ -116,7 +116,8 @@ object CloudSyncManager {
                     wordCount        = (doc.getLong("wordCount") ?: 0L).toInt(),
                     createdAt        = doc.getLong("createdAt")  ?: 0L,
                     currentWordIndex = (doc.getLong("currentWordIndex") ?: 0L).toInt(),
-                    coverPath        = null
+                    coverPath        = null,
+                    category         = doc.getString("category")
                 )
             } catch (e: Exception) { null }
         }
@@ -164,11 +165,12 @@ object CloudSyncManager {
         }
     }
 
-    private fun BookEntity.toFirestoreMap(): Map<String, Any> = mapOf(
-        "title"            to title,
-        "fileType"         to fileType,
-        "wordCount"        to wordCount,
-        "createdAt"        to createdAt,
-        "currentWordIndex" to currentWordIndex
-    )
+    private fun BookEntity.toFirestoreMap(): Map<String, Any> = buildMap {
+        put("title",            title)
+        put("fileType",         fileType)
+        put("wordCount",        wordCount)
+        put("createdAt",        createdAt)
+        put("currentWordIndex", currentWordIndex)
+        category?.let { put("category", it) }
+    }
 }
