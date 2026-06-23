@@ -142,9 +142,11 @@ fun BookRow(
                     Spacer(Modifier.height(3.dp))
                     Text(
                         text     = cat,
-                        fontSize = 10.sp,
+                        fontSize = 12.sp,
                         color    = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f),
-                        modifier = Modifier.clickable(onClick = onEditCategory)
+                        modifier = Modifier
+                            .clickable(onClick = onEditCategory)
+                            .padding(vertical = 12.dp, horizontal = 8.dp)
                     )
                 }
             }
