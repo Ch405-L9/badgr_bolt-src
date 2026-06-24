@@ -1,6 +1,6 @@
 # BADGR Bolt - Advanced RSVP Speed Reader
 
-**Version 3.2.0** | Android 8.0+ (API 26+) | BADGRTechnologies LLC
+**Version 3.2.1** | Android 8.0+ (API 26+) | BADGRTechnologies LLC
 
 BADGR Bolt is a precision speed reading application using Optimal Recognition Point (ORP)
 technology and Rapid Serial Visual Presentation (RSVP) to help you read faster with

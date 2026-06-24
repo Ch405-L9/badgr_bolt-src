@@ -1,3 +1,14 @@
+## [3.2.1] — 2026-06-24
+
+### Fixed
+- AccountViewModel: Email input sanitization strengthened — `sanitizedEmail()` now strips non-printable bytes (filters to U+0020–U+007E range) in addition to trimming whitespace; applied to sign-in, sign-up, and password reset flows
+- Theme: Removed deprecated `window.statusBarColor` API call and its `toArgb` import — eliminates lint warning and aligns with Edge-to-Edge behavior on Android 15+
+
+### Security
+- Release source set: `network_security_config.xml` added — enforces `cleartextTrafficPermitted="false"` for all release builds, preventing accidental plaintext traffic in production
+- Repo hygiene: `google-services.json` removed from git tracking (Firebase client config; embedded in APK anyway; not a secret, but wrong to store in public repo per own .gitignore policy)
+- Repo hygiene: `.idea/` IDE files untracked — were polluting public repo with local machine state
+
 ## [3.2.0] — 2026-06-23
 
 ### Added

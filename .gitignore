@@ -74,6 +74,7 @@ app/.gitignore
 # Patch and fix scripts (session working files)
 patch_*.py
 fix_*.py
+fix_*.sh
 diagnose_*.py
 commit_and_build.sh
 *.md.bak
@@ -81,3 +82,26 @@ BADGR\ Bolt_*.md
 BADGR_BOLT_RELEASE_STRATEGY*.md
 .aider*
 .env
+
+# --- IDE — VS Code ---
+.vscode/
+
+# --- External / unrelated projects ---
+OrbReaderBackend-main/
+
+# --- Device logs, diagnostics, crash stacktraces ---
+logcat_*.txt
+logcat+*.zip
+com.badgr.orbreader_issue_*.txt
+playstore_apk.stats/
+
+# --- Screenshots and session images ---
+Screenshot_*.jpg
+Screenshot_*.png
+2026-*.png
+
+# --- Claude / AI session working files ---
+(*)_*.md
+Claude_README*.txt
+README_FIRST_*.txt
+CLAUDE_FINAL_POLISH-REVIEW.zip

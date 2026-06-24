@@ -62,7 +62,7 @@ class AccountViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             _uiState.value = AccountUiState.Loading
             try {
-                val user = CloudSyncManager.signIn(email.trim(), password)
+                val user = CloudSyncManager.signIn(email.sanitizedEmail(), password)
                 _isEmailVerified.value = user.isEmailVerified
                 _uiState.value = AccountUiState.SignedIn(user.email ?: "")
             } catch (e: Exception) {
@@ -85,7 +85,7 @@ class AccountViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             _uiState.value = AccountUiState.Loading
             try {
-                val user = CloudSyncManager.signUp(email.trim(), password)
+                val user = CloudSyncManager.signUp(email.sanitizedEmail(), password)
                 _isEmailVerified.value = user.isEmailVerified  // false on new signup
                 _uiState.value = AccountUiState.SignedIn(user.email ?: "")
             } catch (e: Exception) {
@@ -112,7 +112,7 @@ class AccountViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             try {
                 com.google.firebase.auth.FirebaseAuth.getInstance()
-                    .sendPasswordResetEmail(email.trim())
+                    .sendPasswordResetEmail(email.sanitizedEmail())
                     .await()
                 _resendStatus.value = "Password reset email sent — check your inbox."
             } catch (e: Exception) {
@@ -166,3 +166,6 @@ class AccountViewModel(application: Application) : AndroidViewModel(application)
     fun launchSubscription(activity: Activity) = purchaseManager.launchSubscriptionFlow(activity)
     fun launchLifetime(activity: Activity)      = purchaseManager.launchLifetimeFlow(activity)
 }
+
+private fun String.sanitizedEmail(): String =
+    trim().filter { it.code in 0x20..0x7E }.lowercase()
