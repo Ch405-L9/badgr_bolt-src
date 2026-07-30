@@ -1,3 +1,12 @@
+## [3.3.0] — 2026-07-30
+
+### Added
+- Read Aloud (TTS): synchronized text-to-speech playback — speaker toggle in the reader top bar. Speech acts as the playback clock: each RSVP chunk is one utterance and the display advances only when the engine finishes speaking it, so audio and display can't drift. Free for all users
+- Speech rate follows the WPM dial (rate = WPM/175, clamped to the engine's intelligible 0.5–3.0 range, ~525 WPM effective ceiling with a UI hint above it)
+- Audio focus handling: playback pauses automatically on phone calls or when another app takes audio
+- Graceful degradation: if the device TTS engine fails to initialize or errors mid-book, playback falls back to visual-only mode and the toggle disables — never blocks reading
+- New `audio/TextToSpeechManager.kt`; `ttsEnabled` preference in DataStore; manifest `<queries>` entry for TTS engine visibility on API 30+. No new permissions, no data collected
+
 ## [3.2.2] — 2026-07-30
 
 ### Changed

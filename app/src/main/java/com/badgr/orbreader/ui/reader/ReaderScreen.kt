@@ -11,6 +11,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.VolumeOff
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
@@ -56,6 +58,8 @@ fun ReaderScreen(
     val colorBlindnessMode  by viewModel.colorBlindnessMode.collectAsState()
     val currentChapterIndex by viewModel.currentChapterIndex.collectAsState()
     val totalChapters       by viewModel.totalChapters.collectAsState()
+    val ttsEnabled          by viewModel.ttsEnabled.collectAsState()
+    val ttsUnavailable      by viewModel.ttsUnavailable.collectAsState()
 
     val haptic = LocalHapticFeedback.current
     val orpColorList      = ColorBlindness.getOrpColors(colorBlindnessMode)
@@ -96,6 +100,21 @@ fun ReaderScreen(
                     )
                 },
                 actions = {
+                    IconButton(
+                        onClick = { viewModel.setTtsEnabled(!ttsEnabled) },
+                        enabled = !ttsUnavailable
+                    ) {
+                        Icon(
+                            if (ttsEnabled && !ttsUnavailable) Icons.AutoMirrored.Filled.VolumeUp
+                            else Icons.AutoMirrored.Filled.VolumeOff,
+                            contentDescription = if (ttsEnabled) "Turn off read aloud" else "Turn on read aloud",
+                            tint = when {
+                                ttsUnavailable                -> ReaderColors.guideLine
+                                ttsEnabled                    -> currentOrpColor
+                                else                          -> ReaderColors.textWarm
+                            }
+                        )
+                    }
                     IconButton(onClick = { viewModel.saveProgress(); onBack() }) {
                         Icon(Icons.Default.Close, contentDescription = "Close", tint = ReaderColors.textWarm)
                     }
@@ -235,6 +254,14 @@ fun ReaderScreen(
                 color = currentOrpColor,
                 style = MaterialTheme.typography.labelMedium
             )
+            if (ttsEnabled && !ttsUnavailable &&
+                state.wpm > com.badgr.orbreader.audio.TextToSpeechManager.MAX_EFFECTIVE_WPM) {
+                Text(
+                    "read-aloud caps near ${com.badgr.orbreader.audio.TextToSpeechManager.MAX_EFFECTIVE_WPM} WPM",
+                    color    = ReaderColors.textDimmed,
+                    fontSize = 10.sp
+                )
+            }
             val wordsLeft = (state.words.size - state.currentIndex).coerceAtLeast(0)
             val minsLeft  = wordsLeft / state.wpm.coerceAtLeast(1)
             val timeLeft  = when {

@@ -28,7 +28,8 @@ data class UserPreferences(
     val clausePauseMultiplier   : Float   = 1.5f,
     val colorBlindnessMode      : Int     = 0,
     val hasSeenOnboarding       : Boolean = false,
-    val hasSeenHelp             : Boolean = false
+    val hasSeenHelp             : Boolean = false,
+    val ttsEnabled              : Boolean = false
 )
 
 class UserPreferencesRepository(private val context: Context) {
@@ -47,6 +48,7 @@ class UserPreferencesRepository(private val context: Context) {
         val COLOR_BLINDNESS_MODE     = intPreferencesKey("color_blindness_mode")
         val HAS_SEEN_ONBOARDING      = booleanPreferencesKey("has_seen_onboarding")
         val HAS_SEEN_HELP            = booleanPreferencesKey("has_seen_help")
+        val TTS_ENABLED              = booleanPreferencesKey("tts_enabled")
     }
 
     val preferences: Flow<UserPreferences> = context.dataStore.data
@@ -68,7 +70,8 @@ class UserPreferencesRepository(private val context: Context) {
                 clausePauseMultiplier   = prefs[Keys.CLAUSE_PAUSE_MULT]    ?: 1.5f,
                 colorBlindnessMode      = prefs[Keys.COLOR_BLINDNESS_MODE] ?: 0,
                 hasSeenOnboarding       = prefs[Keys.HAS_SEEN_ONBOARDING]  ?: false,
-                hasSeenHelp             = prefs[Keys.HAS_SEEN_HELP]        ?: false
+                hasSeenHelp             = prefs[Keys.HAS_SEEN_HELP]        ?: false,
+                ttsEnabled              = prefs[Keys.TTS_ENABLED]          ?: false
             )
         }
 
@@ -85,4 +88,5 @@ class UserPreferencesRepository(private val context: Context) {
     suspend fun setColorBlindnessMode(mode: Int)           { context.dataStore.edit { it[Keys.COLOR_BLINDNESS_MODE] = mode.coerceIn(0, 4) } }
     suspend fun setHasSeenOnboarding(seen: Boolean)        { context.dataStore.edit { it[Keys.HAS_SEEN_ONBOARDING]  = seen } }
     suspend fun setHasSeenHelp(seen: Boolean)              { context.dataStore.edit { it[Keys.HAS_SEEN_HELP]        = seen } }
+    suspend fun setTtsEnabled(enabled: Boolean)            { context.dataStore.edit { it[Keys.TTS_ENABLED]          = enabled } }
 }

@@ -4,6 +4,7 @@ import android.app.Application
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.badgr.orbreader.audio.TextToSpeechManager
 import com.badgr.orbreader.data.local.BookDatabase
 import com.badgr.orbreader.data.preferences.UserPreferencesRepository
 import com.badgr.orbreader.data.repository.BookRepository
@@ -18,6 +19,7 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -80,6 +82,45 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
     val colorBlindnessMode: StateFlow<Int> = prefsRepo.preferences
         .map { it.colorBlindnessMode }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
+
+    val ttsEnabled: StateFlow<Boolean> = prefsRepo.preferences
+        .map { it.ttsEnabled }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    private val _ttsUnavailable = MutableStateFlow(false)
+    val ttsUnavailable: StateFlow<Boolean> = _ttsUnavailable.asStateFlow()
+
+    // Engine spins up only for users who actually turn TTS on.
+    private var ttsManager: TextToSpeechManager? = null
+    private var utteranceCounter = 0L
+
+    private fun ensureTts(): TextToSpeechManager {
+        ttsManager?.let { return it }
+        return TextToSpeechManager(getApplication()).also { mgr ->
+            mgr.onFocusLost = {
+                if (_state.value.isPlaying) {
+                    viewModelScope.launch { togglePlayPause() }
+                }
+            }
+            viewModelScope.launch {
+                mgr.initFailed.collect { failed -> if (failed) _ttsUnavailable.value = true }
+            }
+            ttsManager = mgr
+        }
+    }
+
+    fun setTtsEnabled(enabled: Boolean) {
+        if (enabled) ensureTts()
+        viewModelScope.launch { prefsRepo.setTtsEnabled(enabled) }
+        if (_state.value.isPlaying) {
+            stopPlayback()
+            // Restart once the pref flow emits so startPlayback sees the new mode.
+            viewModelScope.launch {
+                ttsEnabled.first { it == enabled }
+                if (_state.value.isPlaying) startPlayback()
+            }
+        }
+    }
 
     // Chapter navigation — word indices where each chapter/part/section begins
     private val _chapterStarts = MutableStateFlow<List<Int>>(listOf(0))
@@ -258,7 +299,52 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
 
     private fun startPlayback() {
         playJob?.cancel()
-        playJob = viewModelScope.launch {
+        val useTts = ttsEnabled.value && !_ttsUnavailable.value
+        playJob = if (useTts) startTtsPlayback() else startTimerPlayback()
+    }
+
+    private fun startTimerPlayback() = viewModelScope.launch {
+        while (_state.value.isPlaying) {
+            val s     = _state.value
+            val chunk = chunkSize.value
+            if (s.currentIndex >= s.words.lastIndex) {
+                _state.update { it.copy(isPlaying = false) }
+                sessionActiveMs += System.currentTimeMillis() - lastPlayStartMs
+                break
+            }
+
+            val baseDelay = (60_000L * chunk) / s.wpm
+
+            val lastWordInChunk = s.words.getOrNull(s.currentIndex + chunk - 1) ?: ""
+            val pauseMultiplier = when {
+                OrpEngine.hasSentenceEndingPunctuation(lastWordInChunk) -> sentencePauseMultiplier.value
+                OrpEngine.hasClausePunctuation(lastWordInChunk)         -> clausePauseMultiplier.value
+                else                                                    -> 1.0f
+            }
+
+            delay((baseDelay * pauseMultiplier).toLong())
+            _state.update { it.copy(currentIndex = (it.currentIndex + chunk).coerceAtMost(it.words.lastIndex)) }
+        }
+    }
+
+    /**
+     * TTS mode uses speech as the playback clock: each chunk is one utterance and the
+     * display advances only when the engine finishes speaking it, so audio and display
+     * cannot drift. The engine tops out around rate 3.0 (~525 WPM) — above that the
+     * dial still climbs but speech is clamped, and the UI shows a cap hint.
+     */
+    private fun startTtsPlayback() = viewModelScope.launch {
+        val tts = ensureTts()
+        // Engine init is async; give it a moment on first use, fall back if it never readies.
+        val ready = withTimeoutOrNull(4_000L) { tts.isReady.first { it } } != null
+        if (!ready) {
+            _ttsUnavailable.value = true
+            startTimerPlayback().also { playJob = it }
+            return@launch
+        }
+
+        tts.requestFocus()
+        try {
             while (_state.value.isPlaying) {
                 val s     = _state.value
                 val chunk = chunkSize.value
@@ -268,18 +354,37 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
                     break
                 }
 
-                val baseDelay = (60_000L * chunk) / s.wpm
+                tts.setRateForWpm(s.wpm)
+                val text = (0 until chunk)
+                    .mapNotNull { s.words.getOrNull(s.currentIndex + it) }
+                    .joinToString(" ")
 
-                val lastWordInChunk = s.words.getOrNull(s.currentIndex + chunk - 1) ?: ""
-                val pauseMultiplier = when {
-                    OrpEngine.hasSentenceEndingPunctuation(lastWordInChunk) -> sentencePauseMultiplier.value
-                    OrpEngine.hasClausePunctuation(lastWordInChunk)         -> clausePauseMultiplier.value
-                    else                                                    -> 1.0f
+                val spoke = tts.speakAndAwait(text, "badgr_utt_${utteranceCounter++}")
+                if (!_state.value.isPlaying) break
+                if (!spoke) {
+                    // Engine error mid-book — degrade to visual-only rather than stalling.
+                    _ttsUnavailable.value = true
+                    playJob = startTimerPlayback()
+                    return@launch
                 }
 
-                delay((baseDelay * pauseMultiplier).toLong())
+                // TTS already pauses briefly at punctuation; add only the *extra* pause
+                // beyond 1x that the user configured, to avoid doubling up.
+                val lastWordInChunk = s.words.getOrNull(s.currentIndex + chunk - 1) ?: ""
+                val extraMultiplier = when {
+                    OrpEngine.hasSentenceEndingPunctuation(lastWordInChunk) -> sentencePauseMultiplier.value - 1f
+                    OrpEngine.hasClausePunctuation(lastWordInChunk)         -> clausePauseMultiplier.value - 1f
+                    else                                                    -> 0f
+                }
+                if (extraMultiplier > 0f) {
+                    val baseDelay = (60_000L * chunk) / s.wpm
+                    delay((baseDelay * extraMultiplier).toLong())
+                }
+
                 _state.update { it.copy(currentIndex = (it.currentIndex + chunk).coerceAtMost(it.words.lastIndex)) }
             }
+        } finally {
+            tts.stop()
         }
     }
 
@@ -288,6 +393,7 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
     @OptIn(DelicateCoroutinesApi::class)
     override fun onCleared() {
         stopPlayback()
+        ttsManager?.shutdown()
         // viewModelScope is cancelled before onCleared() runs, so coroutines launched there die
         // immediately. Use GlobalScope + NonCancellable to guarantee the word index reaches Room
         // when the ViewModel is cleared without a BackHandler call (swipe-from-recents, system nav).
