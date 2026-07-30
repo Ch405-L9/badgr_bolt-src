@@ -7,6 +7,10 @@
 - Graceful degradation: if the device TTS engine fails to initialize or errors mid-book, playback falls back to visual-only mode and the toggle disables — never blocks reading
 - New `audio/TextToSpeechManager.kt`; `ttsEnabled` preference in DataStore; manifest `<queries>` entry for TTS engine visibility on API 30+. No new permissions, no data collected
 
+### Changed
+- Google Play Billing Library 8.0.0 → 9.1.0 (Google's recommended version for latest monetization features; no code changes needed in `InAppPurchaseManager`, zero deprecation warnings)
+- Toolchain: Kotlin 2.0.21 → 2.2.21, KSP → 2.2.21-2.0.5 (KSP2), Room 2.6.1 → 2.8.4 (KSP2 compatibility), AGP 8.7.3 → 8.13.2, Gradle wrapper 8.9 → 8.13 — required chain for Billing 9's Kotlin 2.3 metadata; R8 metadata warnings resolved
+
 ## [3.2.2] — 2026-07-30
 
 ### Changed
