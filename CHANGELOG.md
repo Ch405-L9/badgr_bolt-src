@@ -10,6 +10,10 @@
 ### Changed
 - Google Play Billing Library 8.0.0 → 9.1.0 (Google's recommended version for latest monetization features; no code changes needed in `InAppPurchaseManager`, zero deprecation warnings)
 - Toolchain: Kotlin 2.0.21 → 2.2.21, KSP → 2.2.21-2.0.5 (KSP2), Room 2.6.1 → 2.8.4 (KSP2 compatibility), AGP 8.7.3 → 8.13.2, Gradle wrapper 8.9 → 8.13 — required chain for Billing 9's Kotlin 2.3 metadata; R8 metadata warnings resolved
+- Firebase BOM 33.7.0 → 34.17.0 (pulls play-services-measurement 22.1.2 → 23.2.0, which drops the deprecated `Window.setStatusBarColor` call flagged in the Play Console Android 15 edge-to-edge warning). Migrated the four Firebase artifacts off the removed `-ktx` shims (`firebase-auth-ktx` → `firebase-auth`, etc.); no source changes — app already imports the main modules
+
+### Fixed
+- Android 15 edge-to-edge deprecation warnings: verified via dexdump that the release bundle now contains **zero** references to `Window.setStatusBarColor`, `Window.setNavigationBarColor`, or `LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES`. App's own window handling already used `enableEdgeToEdge()` + `WindowCompat` insets; the residual warnings on bundle 29 came from third-party code (Play Services measurement, resolved by the Firebase bump). Note: `com.pairip.licensecheck` is injected by Google Play App Signing after upload and is outside the app's control
 
 ## [3.2.2] — 2026-07-30
 
