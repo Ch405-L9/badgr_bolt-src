@@ -25,9 +25,18 @@ Phase 2 & 3 Development Tasks
 ---
 
 ## FEATURE: TEXT-TO-SPEECH
-- [ ] TASK-401: TTS Synchronized Playback
+- [x] TASK-401: TTS Synchronized Playback
   - What: Implement TextToSpeechManager.kt using Android TTS to speak each word in sync with the RSVP display.
   - Acceptance: Done when enabling TTS causes the app to read aloud at the speed matching current WPM.
+  - DONE in v3.3.0 (chunk-clock, WPM-driven rate). Superseded by TASK-402 for natural voice.
+- [ ] TASK-402: TTS Natural Voice (v3.4.0)
+  - What: Decouple narration speed from RSVP WPM (default 1.0×≈175 wpm), sentence-level
+    utterances for prosody, A1/A2 display toggle, on-device voice picker.
+  - Design: see docs/TTS_NATURAL_VOICE_PLAN.md (approved 2026-07-30).
+  - Acceptance: Done when read-aloud sounds natural (punctuation pauses present) and raising
+    WPM no longer speeds the voice; default follows at ~175–200 wpm.
+- [ ] TASK-403: Custom branded voice (Phase 2, cloud neural — B. Lawson samples)
+  - Requires backend TTS + Data safety update. Separate initiative.
 
 ---
 
