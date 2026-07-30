@@ -105,3 +105,7 @@ Screenshot_*.png
 Claude_README*.txt
 README_FIRST_*.txt
 CLAUDE_FINAL_POLISH-REVIEW.zip
+
+# plaintext credential stores — never commit
+*secrets_SocMed*
+(ENV_ALL_API_PW)*

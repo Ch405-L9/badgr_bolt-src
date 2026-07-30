@@ -1,3 +1,13 @@
+## [3.2.2] — 2026-07-30
+
+### Changed
+- Google Play Billing Library upgraded 7.0.0 → 8.0.0 (`billing-ktx`) — required by Play policy for all app updates from Aug 31, 2026. No code changes needed: `InAppPurchaseManager` already on modern APIs (`PendingPurchasesParams`, `queryPurchasesAsync`, `queryProductDetails`); none of the APIs removed in 8.0 were in use
+- versionCode 21 → 29 (jumps past bundles 26/28 previously uploaded to non-production tracks), versionName 3.2.2
+
+### Infrastructure
+- Legal pages hosting restored: source repo renamed to `badgr_bolt-src` (private); new public docs-only `badgr_bolt` repo serves GitHub Pages at `ch405-l9.github.io/badgr_bolt/` (privacy policy, terms, account deletion) — fixes Play Console "invalid account deletion link" Data safety violation (URL was 404 because Pages cannot serve from a private repo)
+- Repo hygiene: `.gitignore` patterns added for plaintext credential stores
+
 ## [3.2.1] — 2026-06-24
 
 ### Fixed
