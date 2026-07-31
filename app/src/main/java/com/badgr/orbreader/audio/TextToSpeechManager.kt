@@ -39,6 +39,35 @@ class TextToSpeechManager(private val context: Context) {
         const val WORDS_PER_MINUTE_AT_UNIT_RATE = 175f
         const val MAX_RATE = 2.0f
         const val MIN_RATE = 0.5f
+
+        /**
+         * Opens the system Text-to-speech settings, where the user can install voice
+         * data, switch engines, or download languages — for any installed engine.
+         * Returns false if no activity can handle it (rare; then fall back to app details).
+         */
+        fun openSystemTtsSettings(context: Context): Boolean {
+            // Public action string for the system Text-to-speech settings screen.
+            // (There is no public SDK constant for this; the string is stable across versions.)
+            val intent = android.content.Intent("com.android.settings.TTS_SETTINGS")
+                .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+            return try {
+                context.startActivity(intent)
+                true
+            } catch (e: Exception) {
+                Log.w(TAG, "TTS settings unavailable: ${e.localizedMessage}")
+                // Fallback: general Settings, so the button never dead-ends.
+                try {
+                    context.startActivity(
+                        android.content.Intent(android.provider.Settings.ACTION_SETTINGS)
+                            .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                    )
+                    true
+                } catch (e2: Exception) {
+                    Log.w(TAG, "Settings unavailable: ${e2.localizedMessage}")
+                    false
+                }
+            }
+        }
     }
 
     private val _isReady = MutableStateFlow(false)
@@ -50,6 +79,14 @@ class TextToSpeechManager(private val context: Context) {
     /** True once the active engine has reported at least one word range. */
     private val _rangesObserved = MutableStateFlow(false)
     val rangesObserved: StateFlow<Boolean> = _rangesObserved
+
+    /**
+     * True when the active engine initialized but has no voice data for the device
+     * language — read-aloud would otherwise silently do nothing. The UI surfaces this
+     * and points the user at system TTS settings to install voice data or switch engine.
+     */
+    private val _languageUnavailable = MutableStateFlow(false)
+    val languageUnavailable: StateFlow<Boolean> = _languageUnavailable
 
     /** Fired when the system takes audio focus (phone call, another media app). */
     var onFocusLost: (() -> Unit)? = null
@@ -66,11 +103,7 @@ class TextToSpeechManager(private val context: Context) {
     }
 
     private fun onEngineReady() {
-        val langResult = tts.setLanguage(Locale.getDefault())
-        if (langResult == TextToSpeech.LANG_MISSING_DATA ||
-            langResult == TextToSpeech.LANG_NOT_SUPPORTED) {
-            Log.w(TAG, "Default locale unsupported by TTS engine, using engine default voice")
-        }
+        applyLanguage()
         tts.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
             override fun onStart(utteranceId: String?) {}
             override fun onDone(utteranceId: String?) {
@@ -170,6 +203,28 @@ class TextToSpeechManager(private val context: Context) {
     }
 
     // ── Speech ────────────────────────────────────────────────────
+
+    /**
+     * Sets the engine language to the device locale and updates [languageUnavailable].
+     * Retries with language-only when the exact locale is missing but the base language
+     * may exist. Safe to call repeatedly — used both at init and before each playback, so
+     * the missing-language state clears if the user installs a voice and returns.
+     */
+    fun applyLanguage() {
+        val locale = Locale.getDefault()
+        val exact  = tts.setLanguage(locale)
+        val missing = exact == TextToSpeech.LANG_MISSING_DATA ||
+                      exact == TextToSpeech.LANG_NOT_SUPPORTED
+        if (missing) {
+            val base = tts.setLanguage(Locale(locale.language))
+            val stillMissing = base == TextToSpeech.LANG_MISSING_DATA ||
+                               base == TextToSpeech.LANG_NOT_SUPPORTED
+            _languageUnavailable.value = stillMissing
+            if (stillMissing) Log.w(TAG, "TTS language for $locale unavailable on active engine")
+        } else {
+            _languageUnavailable.value = false
+        }
+    }
 
     /** Narration speed multiplier on the engine's natural cadence (1.0 ≈ 175 wpm). */
     fun setNarrationSpeed(multiplier: Float) {

@@ -30,6 +30,7 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalConfiguration
@@ -39,6 +40,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.badgr.orbreader.audio.TextToSpeechManager
 import com.badgr.orbreader.data.preferences.TTS_DISPLAY_FLOWING
 import com.badgr.orbreader.data.preferences.TTS_SPEED_MAX
 import com.badgr.orbreader.data.preferences.TTS_SPEED_MIN
@@ -75,6 +77,9 @@ fun ReaderScreen(
     val ttsDisplayMode      by viewModel.ttsDisplayMode.collectAsState()
     val ttsVoices           by viewModel.ttsVoices.collectAsState()
     val ttsVoiceId          by viewModel.ttsVoiceId.collectAsState()
+    val ttsLanguageMissing  by viewModel.ttsLanguageUnavailable.collectAsState()
+
+    val context = LocalContext.current
 
     val ttsActive = ttsEnabled && !ttsUnavailable
     var showVoicePicker by remember { mutableStateOf(false) }
@@ -175,6 +180,37 @@ fun ReaderScreen(
         }
 
         val controlsContent: @Composable ColumnScope.() -> Unit = {
+            // Read-aloud enabled but the active engine has no voice data for this language.
+            if (ttsEnabled && !ttsUnavailable && ttsLanguageMissing) {
+                Surface(
+                    color    = ReaderColors.orpFocal.copy(alpha = 0.12f),
+                    shape    = RoundedCornerShape(8.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 12.dp)
+                ) {
+                    Column(Modifier.padding(12.dp)) {
+                        Text(
+                            "Read-aloud needs a voice for your language",
+                            color = ReaderColors.textWarm,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            "Your text-to-speech engine has no voice installed for this language. Install one or switch engines in system settings.",
+                            color = ReaderColors.textDimmed,
+                            fontSize = 11.sp
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        TextButton(
+                            onClick = { TextToSpeechManager.openSystemTtsSettings(context) },
+                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                        ) {
+                            Text("Open TTS settings", color = currentOrpColor, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
             // Progress info row: word count + chapter indicator
             Row(
                 modifier              = Modifier.fillMaxWidth(),
@@ -374,6 +410,22 @@ fun ReaderScreen(
                             color = if (ttsVoices.isEmpty()) ReaderColors.guideLine else currentOrpColor,
                             fontSize = 13.sp
                         )
+                    }
+                }
+                Spacer(Modifier.height(4.dp))
+                Row(
+                    modifier              = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment     = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "Engine & voices",
+                        color    = ReaderColors.textDimmed,
+                        fontSize = 11.sp,
+                        modifier = Modifier.weight(1f)
+                    )
+                    TextButton(onClick = { TextToSpeechManager.openSystemTtsSettings(context) }) {
+                        Text("System TTS settings", color = currentOrpColor, fontSize = 13.sp)
                     }
                 }
             } else {

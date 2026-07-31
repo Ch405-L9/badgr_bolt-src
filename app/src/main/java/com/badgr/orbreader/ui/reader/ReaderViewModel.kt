@@ -103,6 +103,10 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
     private val _ttsUnavailable = MutableStateFlow(false)
     val ttsUnavailable: StateFlow<Boolean> = _ttsUnavailable.asStateFlow()
 
+    // Engine initialized but has no voice data for the device language.
+    private val _ttsLanguageUnavailable = MutableStateFlow(false)
+    val ttsLanguageUnavailable: StateFlow<Boolean> = _ttsLanguageUnavailable.asStateFlow()
+
     // (voiceId, displayName) for the voice picker; populated when TTS is enabled.
     private val _ttsVoices = MutableStateFlow<List<Pair<String, String>>>(emptyList())
     val ttsVoices: StateFlow<List<Pair<String, String>>> = _ttsVoices.asStateFlow()
@@ -125,6 +129,9 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
             }
             viewModelScope.launch {
                 mgr.initFailed.collect { failed -> if (failed) _ttsUnavailable.value = true }
+            }
+            viewModelScope.launch {
+                mgr.languageUnavailable.collect { _ttsLanguageUnavailable.value = it }
             }
             // Once ready, apply the saved voice and populate the picker list with
             // friendly sequential labels (engine voice ids are opaque codes).
@@ -421,6 +428,9 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
             return@launch
         }
 
+        // Re-check language each time playback starts, so the missing-language banner
+        // clears if the user installed a voice via system settings and came back.
+        tts.applyLanguage()
         tts.setNarrationSpeed(ttsNarrationSpeed.value)
         tts.requestFocus()
         try {

@@ -1,3 +1,14 @@
+## [3.4.1] — 2026-07-31
+
+### Added
+- Read Aloud multi-engine robustness: a "System TTS settings" link in the read-aloud controls opens the device's text-to-speech settings, where any installed engine's voices/languages can be installed or the engine switched
+- Missing-language handling: if the active TTS engine has no voice for the device language, read-aloud now shows a clear message with a link to install one, instead of silently doing nothing. The check re-runs each time playback starts, so the notice clears automatically once a voice is installed
+
+### Notes
+- Approach is detect-and-degrade (no per-engine code): the engine-agnostic timed fallback shipped in v3.4.0 already covers engines that don't report word timing
+- The system-default engine remains the default (respects the user's OS-level choice)
+- The missing-language message and the settings link are implemented and build-verified, but could not be runtime-exercised on the test device (its engine has the device language); the settings deep-link has a general-Settings fallback if the TTS screen is unavailable
+
 ## [3.4.0] — 2026-07-30
 
 ### Added

@@ -37,13 +37,15 @@ Phase 2 & 3 Development Tasks
     WPM no longer speeds the voice; default follows at ~175–200 wpm.
 - [x] TASK-402: TTS Natural Voice — DONE v3.4.0 (versionCode 31). Decoupled narration
   speed, sentence prosody, dual display (Focus word / Flowing), voice picker.
-- [ ] TASK-404: TTS multi-engine robustness (v3.4.1)
-  - What: settings deep-link (ACTION_TTS_SETTINGS), pre-speak isLanguageAvailable check
-    + graceful message, optional in-app engine picker (tts.engines + 3-arg constructor).
+- [~] TASK-404: TTS multi-engine robustness (v3.4.1) — items 1–3 DONE
+  - DONE: system-default engine kept; "System TTS settings" deep-link (com.android.settings.TTS_SETTINGS
+    + general-Settings fallback); pre-speak language check via setLanguage return codes with
+    exact→base-language retry, missing-language banner + settings CTA, re-checked each playback start.
   - Principle: detect-and-degrade, not enumerate-and-hardcode. Design: docs/TTS_MULTI_ENGINE_PLAN.md.
-  - Acceptance: on an engine lacking the language, user sees a clear message + settings
-    link instead of silent no-op; fallback verified on a non-Google engine via same-device
-    default-engine switch.
+  - NOT runtime-verified (test device engine has the language); non-Google fallback still unverified
+    on hardware — validate via same-device default-engine switch.
+  - [ ] Item 4 (optional): in-app engine picker (tts.engines + 3-arg constructor). Deferred; gated on
+    the TextToSpeech re-init lifecycle test.
 - [ ] TASK-403: Custom branded voice (Phase 2, cloud neural — B. Lawson samples)
   - Requires backend TTS + Data safety update. Separate initiative.
 
