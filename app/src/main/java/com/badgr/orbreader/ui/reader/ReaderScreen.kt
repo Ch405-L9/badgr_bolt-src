@@ -278,19 +278,28 @@ fun ReaderScreen(
                 }
                 if (ttsActive) {
                     IconButton(
-                        onClick = { viewModel.adjustNarrationSpeed(-TTS_SPEED_STEP) },
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            viewModel.adjustNarrationSpeed(-TTS_SPEED_STEP)
+                        },
                         enabled = ttsNarrationSpeed > TTS_SPEED_MIN
                     ) {
                         Text("−", color = if (ttsNarrationSpeed > TTS_SPEED_MIN) currentOrpColor else ReaderColors.guideLine,
                             fontSize = 20.sp, fontWeight = FontWeight.Bold)
                     }
                 } else {
-                    IconButton(onClick = { viewModel.adjustWpm(-25) }) {
+                    IconButton(onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        viewModel.adjustWpm(-25)
+                    }) {
                         Text("−25", color = ReaderColors.textDimmed, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
                 }
                 FloatingActionButton(
-                    onClick        = { viewModel.togglePlayPause() },
+                    onClick        = {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        viewModel.togglePlayPause()
+                    },
                     containerColor = currentOrpColor,
                     contentColor   = ReaderColors.background
                 ) {
@@ -301,14 +310,20 @@ fun ReaderScreen(
                 }
                 if (ttsActive) {
                     IconButton(
-                        onClick = { viewModel.adjustNarrationSpeed(TTS_SPEED_STEP) },
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            viewModel.adjustNarrationSpeed(TTS_SPEED_STEP)
+                        },
                         enabled = ttsNarrationSpeed < TTS_SPEED_MAX
                     ) {
                         Text("+", color = if (ttsNarrationSpeed < TTS_SPEED_MAX) currentOrpColor else ReaderColors.guideLine,
                             fontSize = 20.sp, fontWeight = FontWeight.Bold)
                     }
                 } else {
-                    IconButton(onClick = { viewModel.adjustWpm(25) }) {
+                    IconButton(onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        viewModel.adjustWpm(25)
+                    }) {
                         Text("+25", color = ReaderColors.textDimmed, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
                 }

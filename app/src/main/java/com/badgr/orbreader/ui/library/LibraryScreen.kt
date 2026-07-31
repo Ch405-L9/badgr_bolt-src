@@ -51,6 +51,7 @@ private val FORMAT_OPTIONS = listOf(
 @Composable
 fun LibraryScreen(
     onOpenBook: (bookId: String) -> Unit,
+    onNavigateToAccount: () -> Unit = {},
     viewModel : LibraryViewModel = viewModel()
 ) {
     val books        by viewModel.books.collectAsState()
@@ -117,7 +118,10 @@ fun LibraryScreen(
                 )
             },
             confirmButton = {
-                TextButton(onClick = viewModel::clearError) {
+                TextButton(onClick = {
+                    viewModel.clearError()
+                    onNavigateToAccount()
+                }) {
                     Text("Upgrade", color = com.badgr.orbreader.ui.theme.ReaderColors.orpFocal,
                          fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
                 }

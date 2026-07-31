@@ -38,6 +38,8 @@ fun AccountScreen(vm: AccountViewModel = viewModel()) {
     val isPro        by vm.isPro.collectAsState()
     val isVerified   by vm.isEmailVerified.collectAsState()
     val activeSku    by vm.activeSku.collectAsState()
+    val monthlyPrice  by vm.monthlyPrice.collectAsState()
+    val lifetimePrice by vm.lifetimePrice.collectAsState()
     val resendStatus by vm.resendStatus.collectAsState()
     val isDeleting   by vm.isDeletingAccount.collectAsState()
     val activity      = LocalContext.current as Activity
@@ -305,7 +307,8 @@ fun AccountScreen(vm: AccountViewModel = viewModel()) {
                                 )
                             ) {
                                 Text(
-                                    "Subscribe - Monthly",
+                                    monthlyPrice?.let { "Subscribe · $it/mo" }
+                                        ?: "Subscribe - Monthly",
                                     color = MaterialTheme.colorScheme.onPrimary
                                 )
                             }
@@ -316,7 +319,10 @@ fun AccountScreen(vm: AccountViewModel = viewModel()) {
                                     contentColor = MaterialTheme.colorScheme.primary
                                 )
                             ) {
-                                Text("Lifetime Access - One-time")
+                                Text(
+                                    lifetimePrice?.let { "Lifetime Access · $it" }
+                                        ?: "Lifetime Access - One-time"
+                                )
                             }
                         }
 

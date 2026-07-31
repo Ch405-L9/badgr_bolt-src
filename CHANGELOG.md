@@ -1,3 +1,21 @@
+## [3.5.0] — 2026-07-31
+
+### Added
+- Live pricing on the upgrade buttons: the Account screen now shows the real, localized Google Play price for the monthly subscription and the lifetime purchase (e.g. "Subscribe · $X/mo", "Lifetime Access · $Y") instead of static labels. Falls back to the static label if Play hasn't returned a price yet
+- Play Integrity API — report-only groundwork: the app now requests a Play Integrity token at launch and sends it to the backend for decoding, purely for observability. It is **fail-open** — the verdict is logged, nothing is ever blocked, and every failure path silently allows the user through. Enforcement is intentionally not enabled yet
+- Haptic feedback in the reader: subtle ticks on play/pause, WPM steppers, and narration-speed steppers; a reward buzz on achievement unlock
+
+### Fixed
+- Book-limit "Upgrade" dialog was a dead-end (it only dismissed). It now takes free users to the Account screen where they can upgrade — closing a broken step in the upgrade funnel
+
+### Backend (badgr-text-service)
+- New `/verify-integrity` endpoint decodes Play Integrity tokens via the linked Google Cloud service account and returns the verdict. Report-only and fail-open by design; requires the `INTEGRITY_SA_JSON` secret to be set on the server (absent = returns allow, decodes nothing)
+
+### Notes
+- Live prices only resolve for accounts that can see the products (license testers / released tracks); debug sideloads may show the static fallback — expected
+- Play Integrity end-to-end requires the backend deployed with the service-account secret; until then the app logs `integrity_not_configured`/`decode_*` and continues normally
+- Haptics require a physical device (emulators have no vibrator)
+
 ## [3.4.2] — 2026-07-31
 
 ### Changed

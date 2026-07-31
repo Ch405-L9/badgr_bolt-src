@@ -24,8 +24,8 @@ android {
         applicationId  = "com.badgr.orbreader"
         minSdk         = 26
         targetSdk      = 36
-        versionCode    = 33
-        versionName    = "3.4.2"
+        versionCode    = 34
+        versionName    = "3.5.0"
 
         buildConfigField(
             "String",
@@ -129,4 +129,5 @@ dependencies {
     implementation(libs.firebase.crashlytics)
     implementation(libs.firebase.analytics)
     implementation(libs.billing)
+    implementation(libs.play.integrity)
 }

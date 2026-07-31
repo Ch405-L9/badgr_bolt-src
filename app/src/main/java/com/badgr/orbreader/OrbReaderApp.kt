@@ -3,6 +3,7 @@ package com.badgr.orbreader
 import android.app.Application
 import com.badgr.orbreader.billing.InAppPurchaseManager
 import com.badgr.orbreader.billing.ProGate
+import com.badgr.orbreader.integrity.IntegrityChecker
 import com.badgr.orbreader.data.preferences.UserPreferencesRepository
 import com.badgr.orbreader.data.local.BookDatabase
 import com.badgr.orbreader.data.local.BookEntity
@@ -67,6 +68,11 @@ class OrbReaderApp : Application() {
                     userPreferencesRepository.setIsPro(isPro)
                 }
             }
+        }
+
+        // Play Integrity report-only probe (fail-open — never blocks the user).
+        applicationScope.launch(Dispatchers.IO) {
+            IntegrityChecker.runReportOnlyCheck(this@OrbReaderApp)
         }
 
         // Pre-populate library with manual if empty

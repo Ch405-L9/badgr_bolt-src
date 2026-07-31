@@ -9,6 +9,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -31,12 +33,14 @@ fun AchievementToastHost(
 ) {
     var currentId by remember { mutableStateOf<String?>(null) }
     var visible   by remember { mutableStateOf(false) }
+    val haptic    = LocalHapticFeedback.current
 
     LaunchedEffect(newAchievementIds) {
         if (newAchievementIds.isEmpty()) return@LaunchedEffect
         for (id in newAchievementIds) {
             currentId = id
             visible   = true
+            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
             delay(3_200)
             visible   = false
             delay(400)   // wait for exit animation

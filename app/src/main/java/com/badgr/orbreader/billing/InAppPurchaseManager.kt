@@ -28,6 +28,12 @@ class InAppPurchaseManager(
     private val _activeSku = MutableStateFlow<String?>(null)
     val activeSku: StateFlow<String?> = _activeSku
 
+    /** Localized, formatted prices (e.g. "$4.99") — null until fetched from Play. */
+    private val _monthlyPrice = MutableStateFlow<String?>(null)
+    val monthlyPrice: StateFlow<String?> = _monthlyPrice
+    private val _lifetimePrice = MutableStateFlow<String?>(null)
+    val lifetimePrice: StateFlow<String?> = _lifetimePrice
+
     private var billingClient: BillingClient = BillingClient.newBuilder(context)
         .setListener(this)
         .enablePendingPurchases(PendingPurchasesParams.newBuilder().enableOneTimeProducts().build())
@@ -42,7 +48,10 @@ class InAppPurchaseManager(
             override fun onBillingSetupFinished(result: BillingResult) {
                 if (result.responseCode == BillingClient.BillingResponseCode.OK) {
                     _isConnected.value = true
-                    scope.launch { queryExistingPurchases() }
+                    scope.launch {
+                        queryExistingPurchases()
+                        queryProductPrices()
+                    }
                 } else {
                     _isConnected.value = false
                     onPurchaseError("Billing setup failed: ${result.debugMessage}")
@@ -96,6 +105,54 @@ class InAppPurchaseManager(
                 _isPro.value = false
                 _activeSku.value = null
             }
+        }
+    }
+
+    /**
+     * Fetches localized formatted prices for both SKUs so the UI can display them
+     * instead of static labels. Reuses the same queryProductDetails pattern as launchFlow.
+     * StateFlow writes are thread-safe from any thread; Compose observes regardless.
+     */
+    suspend fun queryProductPrices() {
+        if (!billingClient.isReady) return
+
+        val subResult = billingClient.queryProductDetails(
+            QueryProductDetailsParams.newBuilder()
+                .setProductList(
+                    listOf(
+                        QueryProductDetailsParams.Product.newBuilder()
+                            .setProductId(SKU_PRO_MONTHLY)
+                            .setProductType(BillingClient.ProductType.SUBS)
+                            .build()
+                    )
+                )
+                .build()
+        )
+        if (subResult.billingResult.responseCode == BillingClient.BillingResponseCode.OK) {
+            _monthlyPrice.value = subResult.productDetailsList
+                ?.firstOrNull()
+                ?.subscriptionOfferDetails?.firstOrNull()
+                ?.pricingPhases?.pricingPhaseList?.firstOrNull()
+                ?.formattedPrice
+        }
+
+        val inappResult = billingClient.queryProductDetails(
+            QueryProductDetailsParams.newBuilder()
+                .setProductList(
+                    listOf(
+                        QueryProductDetailsParams.Product.newBuilder()
+                            .setProductId(SKU_PRO_LIFETIME)
+                            .setProductType(BillingClient.ProductType.INAPP)
+                            .build()
+                    )
+                )
+                .build()
+        )
+        if (inappResult.billingResult.responseCode == BillingClient.BillingResponseCode.OK) {
+            _lifetimePrice.value = inappResult.productDetailsList
+                ?.firstOrNull()
+                ?.oneTimePurchaseOfferDetails
+                ?.formattedPrice
         }
     }
 

@@ -68,6 +68,10 @@
 -keep class com.android.billingclient.** { *; }
 -dontwarn com.android.billingclient.**
 
+# Play Integrity (ships consumer rules; keep + dontwarn for safety)
+-keep class com.google.android.play.core.integrity.** { *; }
+-dontwarn com.google.android.play.core.integrity.**
+
 # CloudSyncManager and ProGate — never obfuscate entitlement logic
 -keep class com.badgr.orbreader.sync.** { *; }
 -keep class com.badgr.orbreader.billing.** { *; }

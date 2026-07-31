@@ -41,6 +41,12 @@ class AccountViewModel(application: Application) : AndroidViewModel(application)
     val activeSku: StateFlow<String?> = purchaseManager.activeSku
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
+    /** Localized formatted prices for the upgrade buttons — null until fetched from Play. */
+    val monthlyPrice: StateFlow<String?> = purchaseManager.monthlyPrice
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+    val lifetimePrice: StateFlow<String?> = purchaseManager.lifetimePrice
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
     // TD-007: expose email verification state to UI
     private val _isEmailVerified = MutableStateFlow(
         CloudSyncManager.currentUser?.isEmailVerified == true

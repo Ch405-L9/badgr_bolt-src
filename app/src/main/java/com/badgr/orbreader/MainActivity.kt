@@ -151,9 +151,17 @@ class MainActivity : ComponentActivity() {
                                 }
 
                                 composable(Screen.Library.route) {
-                                    LibraryScreen(onOpenBook = { bookId ->
-                                        navController.navigate("reader/$bookId")
-                                    })
+                                    LibraryScreen(
+                                        onOpenBook = { bookId ->
+                                            navController.navigate("reader/$bookId")
+                                        },
+                                        onNavigateToAccount = {
+                                            navController.navigate(Screen.Account.route) {
+                                                launchSingleTop = true
+                                                restoreState = true
+                                            }
+                                        }
+                                    )
                                 }
 
                                 composable("reader/{bookId}") { backStackEntry ->
