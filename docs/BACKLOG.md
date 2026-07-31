@@ -35,6 +35,15 @@ Phase 2 & 3 Development Tasks
   - Design: see docs/TTS_NATURAL_VOICE_PLAN.md (approved 2026-07-30).
   - Acceptance: Done when read-aloud sounds natural (punctuation pauses present) and raising
     WPM no longer speeds the voice; default follows at ~175–200 wpm.
+- [x] TASK-402: TTS Natural Voice — DONE v3.4.0 (versionCode 31). Decoupled narration
+  speed, sentence prosody, dual display (Focus word / Flowing), voice picker.
+- [ ] TASK-404: TTS multi-engine robustness (v3.4.1)
+  - What: settings deep-link (ACTION_TTS_SETTINGS), pre-speak isLanguageAvailable check
+    + graceful message, optional in-app engine picker (tts.engines + 3-arg constructor).
+  - Principle: detect-and-degrade, not enumerate-and-hardcode. Design: docs/TTS_MULTI_ENGINE_PLAN.md.
+  - Acceptance: on an engine lacking the language, user sees a clear message + settings
+    link instead of silent no-op; fallback verified on a non-Google engine via same-device
+    default-engine switch.
 - [ ] TASK-403: Custom branded voice (Phase 2, cloud neural — B. Lawson samples)
   - Requires backend TTS + Data safety update. Separate initiative.
 
