@@ -1,3 +1,14 @@
+## [3.4.0] — 2026-07-30
+
+### Added
+- Read Aloud — Natural Voice: read-aloud now speaks whole sentences per utterance, so the voice carries real intonation and pauses at commas and periods instead of reading word-by-word. Free for all users
+- Narration Speed control (0.5×–2.0×, default 1.0× ≈ 175 wpm), fully independent of the RSVP words-per-minute dial — raising your speed-reading WPM no longer speeds up the voice
+- Two read-aloud display modes, toggle in the reader controls: **Focus word** (single ORP word) and **Flowing** (Audible-style running text with a moving highlight that follows the voice)
+- Voice picker: choose among the device's installed voices; the reader follows the spoken word precisely on engines that report word timing (e.g. Google TTS), with a timed fallback on engines that don't
+
+### Changed
+- Read-aloud speed is no longer tied to the RSVP dial (v3.3.0 mapped rate = WPM/175, which sounded robotic at higher speeds). Narration speed is now its own setting; the RSVP dial governs visual-only (TTS-off) reading
+
 ## [3.3.0] — 2026-07-30
 
 ### Added

@@ -6,6 +6,9 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.badgr.orbreader.audio.TextToSpeechManager
 import com.badgr.orbreader.data.local.BookDatabase
+import com.badgr.orbreader.data.preferences.TTS_DISPLAY_ORP
+import com.badgr.orbreader.data.preferences.TTS_SPEED_MAX
+import com.badgr.orbreader.data.preferences.TTS_SPEED_MIN
 import com.badgr.orbreader.data.preferences.UserPreferencesRepository
 import com.badgr.orbreader.data.repository.BookRepository
 import com.badgr.orbreader.data.repository.ReadingSessionRepository
@@ -17,7 +20,9 @@ import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.math.abs
@@ -87,8 +92,24 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
         .map { it.ttsEnabled }
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
+    val ttsNarrationSpeed: StateFlow<Float> = prefsRepo.preferences
+        .map { it.ttsNarrationSpeed }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, 1.0f)
+
+    val ttsDisplayMode: StateFlow<Int> = prefsRepo.preferences
+        .map { it.ttsDisplayMode }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TTS_DISPLAY_ORP)
+
     private val _ttsUnavailable = MutableStateFlow(false)
     val ttsUnavailable: StateFlow<Boolean> = _ttsUnavailable.asStateFlow()
+
+    // (voiceId, displayName) for the voice picker; populated when TTS is enabled.
+    private val _ttsVoices = MutableStateFlow<List<Pair<String, String>>>(emptyList())
+    val ttsVoices: StateFlow<List<Pair<String, String>>> = _ttsVoices.asStateFlow()
+
+    val ttsVoiceId: StateFlow<String?> = prefsRepo.preferences
+        .map { it.ttsVoiceId }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     // Engine spins up only for users who actually turn TTS on.
     private var ttsManager: TextToSpeechManager? = null
@@ -105,8 +126,36 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
             viewModelScope.launch {
                 mgr.initFailed.collect { failed -> if (failed) _ttsUnavailable.value = true }
             }
+            // Once ready, apply the saved voice and populate the picker list with
+            // friendly sequential labels (engine voice ids are opaque codes).
+            viewModelScope.launch {
+                mgr.isReady.first { it }
+                prefsRepo.preferences.first().ttsVoiceId?.let { mgr.setVoice(it) }
+                _ttsVoices.value = mgr.availableVoices().mapIndexed { i, v ->
+                    v.name to "Voice ${i + 1}"
+                }
+            }
             ttsManager = mgr
         }
+    }
+
+    fun adjustNarrationSpeed(delta: Float) {
+        val next = (ttsNarrationSpeed.value + delta).coerceIn(TTS_SPEED_MIN, TTS_SPEED_MAX)
+        viewModelScope.launch { prefsRepo.setTtsNarrationSpeed(next) }
+        ttsManager?.setNarrationSpeed(next)
+        // Restart the current sentence so the new speed takes effect immediately.
+        if (_state.value.isPlaying && ttsEnabled.value) { stopPlayback(); startPlayback() }
+    }
+
+    fun cycleDisplayMode() {
+        val next = if (ttsDisplayMode.value == TTS_DISPLAY_ORP) 1 else TTS_DISPLAY_ORP
+        viewModelScope.launch { prefsRepo.setTtsDisplayMode(next) }
+    }
+
+    fun selectVoice(voiceId: String) {
+        ttsManager?.setVoice(voiceId)
+        viewModelScope.launch { prefsRepo.setTtsVoiceId(voiceId) }
+        if (_state.value.isPlaying && ttsEnabled.value) { stopPlayback(); startPlayback() }
     }
 
     fun setTtsEnabled(enabled: Boolean) {
@@ -157,7 +206,35 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
                 it.copy(words = words, currentIndex = savedIndex, isLoading = false, wpm = savedWpm)
             }
             detectChapters(words)
+            sentenceStarts = computeSentences(words)
         }
+    }
+
+    // Word indices where each spoken sentence begins. Also caps very long runs so no
+    // single TTS utterance exceeds the engine's input limit.
+    private var sentenceStarts: List<Int> = listOf(0)
+
+    private fun computeSentences(words: List<String>): List<Int> {
+        val starts = mutableListOf(0)
+        var lastBoundary = 0
+        for (i in words.indices) {
+            val hardEnd = OrpEngine.hasSentenceEndingPunctuation(words[i])
+            val tooLong = (i - lastBoundary) >= 40
+            if ((hardEnd || tooLong) && i + 1 < words.size) {
+                starts.add(i + 1)
+                lastBoundary = i + 1
+            }
+        }
+        return starts
+    }
+
+    /** Half-open [start, end) word range of the sentence containing [idx]. */
+    private fun sentenceRangeAt(idx: Int): Pair<Int, Int> {
+        val starts = sentenceStarts
+        val si     = starts.indexOfLast { it <= idx }.coerceAtLeast(0)
+        val start  = starts[si]
+        val end    = starts.getOrElse(si + 1) { _state.value.words.size }
+        return start to end
     }
 
     private fun detectChapters(words: List<String>) {
@@ -328,38 +405,79 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     /**
-     * TTS mode uses speech as the playback clock: each chunk is one utterance and the
-     * display advances only when the engine finishes speaking it, so audio and display
-     * cannot drift. The engine tops out around rate 3.0 (~525 WPM) — above that the
-     * dial still climbs but speech is clamped, and the UI shows a cap hint.
+     * Natural read-aloud (v3.4.0). Each sentence is spoken as one utterance so the engine
+     * applies real intonation and punctuation pauses. Narration speed is decoupled from the
+     * RSVP dial — it comes from [ttsNarrationSpeed]. The display follows the voice word by
+     * word via engine range callbacks; on engines that don't report ranges, a timer paces
+     * the words within each sentence from the same narration speed (minor intra-sentence
+     * drift only, resynced at every sentence boundary).
      */
     private fun startTtsPlayback() = viewModelScope.launch {
         val tts = ensureTts()
-        // Engine init is async; give it a moment on first use, fall back if it never readies.
         val ready = withTimeoutOrNull(4_000L) { tts.isReady.first { it } } != null
         if (!ready) {
             _ttsUnavailable.value = true
-            startTimerPlayback().also { playJob = it }
+            playJob = startTimerPlayback()
             return@launch
         }
 
+        tts.setNarrationSpeed(ttsNarrationSpeed.value)
         tts.requestFocus()
         try {
             while (_state.value.isPlaying) {
-                val s     = _state.value
-                val chunk = chunkSize.value
-                if (s.currentIndex >= s.words.lastIndex) {
+                val words    = _state.value.words
+                val startIdx = _state.value.currentIndex
+                if (startIdx >= words.lastIndex) {
                     _state.update { it.copy(isPlaying = false) }
                     sessionActiveMs += System.currentTimeMillis() - lastPlayStartMs
                     break
                 }
 
-                tts.setRateForWpm(s.wpm)
-                val text = (0 until chunk)
-                    .mapNotNull { s.words.getOrNull(s.currentIndex + it) }
-                    .joinToString(" ")
+                // Speak from the current word to the end of its sentence (resume-safe).
+                val (_, sentEnd) = sentenceRangeAt(startIdx)
+                val speakStart   = startIdx
+                val uttWords     = words.subList(speakStart, sentEnd)
+                val text         = uttWords.joinToString(" ")
 
-                val spoke = tts.speakAndAwait(text, "badgr_utt_${utteranceCounter++}")
+                // Char offset where each word begins in the joined utterance text.
+                val offsets = IntArray(uttWords.size)
+                var cursor  = 0
+                for (i in uttWords.indices) { offsets[i] = cursor; cursor += uttWords[i].length + 1 }
+
+                tts.setNarrationSpeed(ttsNarrationSpeed.value)
+
+                val rangeFired = java.util.concurrent.atomic.AtomicBoolean(false)
+                // Fallback pacer: on engines that never report word ranges, advance the
+                // display on a timer. Once ranges have EVER been observed this session we
+                // trust them and skip the fallback entirely — this avoids a first-utterance
+                // race where engine warm-up delays the first range past the probe window and
+                // both paths briefly drive the display. The probe window is generous so a
+                // slow first callback on a range-capable engine doesn't trip it.
+                val pacer = if (tts.rangesObserved.value) null else launch {
+                    delay(900)
+                    if (rangeFired.get() || tts.rangesObserved.value) return@launch
+                    Log.i("ReaderViewModel", "TTS word-range fallback engaged (engine reports no ranges)")
+                    val wpm     = (ttsNarrationSpeed.value * TextToSpeechManager.WORDS_PER_MINUTE_AT_UNIT_RATE)
+                        .coerceAtLeast(60f)
+                    val perWord = (60_000f / wpm).toLong()
+                    var wi = 0
+                    while (currentCoroutineContext().isActive && !rangeFired.get() && _state.value.isPlaying && speakStart + wi < sentEnd) {
+                        val globalIdx = (speakStart + wi).coerceAtMost(words.lastIndex)
+                        _state.update { it.copy(currentIndex = globalIdx) }
+                        wi++
+                        delay(perWord)
+                    }
+                }
+
+                val uttId = "badgr_utt_${utteranceCounter++}"
+                val spoke = tts.speakSentenceAwait(text, uttId) { charStart, _ ->
+                    rangeFired.set(true)
+                    val wi        = offsets.indexOfLast { it <= charStart }.coerceAtLeast(0)
+                    val globalIdx = (speakStart + wi).coerceAtMost(words.lastIndex)
+                    _state.update { it.copy(currentIndex = globalIdx) }
+                }
+                pacer?.cancel()
+
                 if (!_state.value.isPlaying) break
                 if (!spoke) {
                     // Engine error mid-book — degrade to visual-only rather than stalling.
@@ -368,20 +486,8 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
                     return@launch
                 }
 
-                // TTS already pauses briefly at punctuation; add only the *extra* pause
-                // beyond 1x that the user configured, to avoid doubling up.
-                val lastWordInChunk = s.words.getOrNull(s.currentIndex + chunk - 1) ?: ""
-                val extraMultiplier = when {
-                    OrpEngine.hasSentenceEndingPunctuation(lastWordInChunk) -> sentencePauseMultiplier.value - 1f
-                    OrpEngine.hasClausePunctuation(lastWordInChunk)         -> clausePauseMultiplier.value - 1f
-                    else                                                    -> 0f
-                }
-                if (extraMultiplier > 0f) {
-                    val baseDelay = (60_000L * chunk) / s.wpm
-                    delay((baseDelay * extraMultiplier).toLong())
-                }
-
-                _state.update { it.copy(currentIndex = (it.currentIndex + chunk).coerceAtMost(it.words.lastIndex)) }
+                // Sentence finished — land on the next sentence's first word.
+                _state.update { it.copy(currentIndex = sentEnd.coerceAtMost(it.words.lastIndex)) }
             }
         } finally {
             tts.stop()

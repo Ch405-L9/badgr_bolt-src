@@ -15,6 +15,15 @@ const val THEME_SYSTEM = 0
 const val THEME_LIGHT  = 1
 const val THEME_DARK   = 2
 
+const val TTS_DISPLAY_ORP     = 0  // single focus word (ORP), advances with the voice
+const val TTS_DISPLAY_FLOWING = 1  // Audible-style flowing text with a moving highlight
+
+// Narration speed is a multiplier on the engine's natural cadence (1.0 ≈ 175 wpm),
+// intentionally decoupled from the RSVP words-per-minute dial.
+const val TTS_SPEED_MIN  = 0.5f
+const val TTS_SPEED_MAX  = 2.0f
+const val TTS_SPEED_STEP = 0.25f
+
 data class UserPreferences(
     val defaultWpm              : Int     = 150,
     val fontSize                : Int     = 36,
@@ -29,7 +38,10 @@ data class UserPreferences(
     val colorBlindnessMode      : Int     = 0,
     val hasSeenOnboarding       : Boolean = false,
     val hasSeenHelp             : Boolean = false,
-    val ttsEnabled              : Boolean = false
+    val ttsEnabled              : Boolean = false,
+    val ttsNarrationSpeed       : Float   = 1.0f,
+    val ttsDisplayMode          : Int     = TTS_DISPLAY_ORP,
+    val ttsVoiceId              : String? = null
 )
 
 class UserPreferencesRepository(private val context: Context) {
@@ -49,6 +61,9 @@ class UserPreferencesRepository(private val context: Context) {
         val HAS_SEEN_ONBOARDING      = booleanPreferencesKey("has_seen_onboarding")
         val HAS_SEEN_HELP            = booleanPreferencesKey("has_seen_help")
         val TTS_ENABLED              = booleanPreferencesKey("tts_enabled")
+        val TTS_NARRATION_SPEED      = floatPreferencesKey("tts_narration_speed")
+        val TTS_DISPLAY_MODE         = intPreferencesKey("tts_display_mode")
+        val TTS_VOICE_ID             = stringPreferencesKey("tts_voice_id")
     }
 
     val preferences: Flow<UserPreferences> = context.dataStore.data
@@ -71,7 +86,10 @@ class UserPreferencesRepository(private val context: Context) {
                 colorBlindnessMode      = prefs[Keys.COLOR_BLINDNESS_MODE] ?: 0,
                 hasSeenOnboarding       = prefs[Keys.HAS_SEEN_ONBOARDING]  ?: false,
                 hasSeenHelp             = prefs[Keys.HAS_SEEN_HELP]        ?: false,
-                ttsEnabled              = prefs[Keys.TTS_ENABLED]          ?: false
+                ttsEnabled              = prefs[Keys.TTS_ENABLED]          ?: false,
+                ttsNarrationSpeed       = prefs[Keys.TTS_NARRATION_SPEED]  ?: 1.0f,
+                ttsDisplayMode          = prefs[Keys.TTS_DISPLAY_MODE]      ?: TTS_DISPLAY_ORP,
+                ttsVoiceId              = prefs[Keys.TTS_VOICE_ID]
             )
         }
 
@@ -89,4 +107,7 @@ class UserPreferencesRepository(private val context: Context) {
     suspend fun setHasSeenOnboarding(seen: Boolean)        { context.dataStore.edit { it[Keys.HAS_SEEN_ONBOARDING]  = seen } }
     suspend fun setHasSeenHelp(seen: Boolean)              { context.dataStore.edit { it[Keys.HAS_SEEN_HELP]        = seen } }
     suspend fun setTtsEnabled(enabled: Boolean)            { context.dataStore.edit { it[Keys.TTS_ENABLED]          = enabled } }
+    suspend fun setTtsNarrationSpeed(speed: Float)         { context.dataStore.edit { it[Keys.TTS_NARRATION_SPEED]  = speed.coerceIn(TTS_SPEED_MIN, TTS_SPEED_MAX) } }
+    suspend fun setTtsDisplayMode(mode: Int)               { context.dataStore.edit { it[Keys.TTS_DISPLAY_MODE]      = mode.coerceIn(TTS_DISPLAY_ORP, TTS_DISPLAY_FLOWING) } }
+    suspend fun setTtsVoiceId(voiceId: String?)            { context.dataStore.edit { if (voiceId == null) it.remove(Keys.TTS_VOICE_ID) else it[Keys.TTS_VOICE_ID] = voiceId } }
 }

@@ -5,6 +5,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -22,8 +23,14 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -32,6 +39,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.badgr.orbreader.data.preferences.TTS_DISPLAY_FLOWING
+import com.badgr.orbreader.data.preferences.TTS_SPEED_MAX
+import com.badgr.orbreader.data.preferences.TTS_SPEED_MIN
+import com.badgr.orbreader.data.preferences.TTS_SPEED_STEP
 import com.badgr.orbreader.ui.components.AchievementToastHost
 import com.badgr.orbreader.ui.components.ChunkWordDisplay
 import com.badgr.orbreader.ui.theme.ColorBlindness
@@ -60,6 +71,13 @@ fun ReaderScreen(
     val totalChapters       by viewModel.totalChapters.collectAsState()
     val ttsEnabled          by viewModel.ttsEnabled.collectAsState()
     val ttsUnavailable      by viewModel.ttsUnavailable.collectAsState()
+    val ttsNarrationSpeed   by viewModel.ttsNarrationSpeed.collectAsState()
+    val ttsDisplayMode      by viewModel.ttsDisplayMode.collectAsState()
+    val ttsVoices           by viewModel.ttsVoices.collectAsState()
+    val ttsVoiceId          by viewModel.ttsVoiceId.collectAsState()
+
+    val ttsActive = ttsEnabled && !ttsUnavailable
+    var showVoicePicker by remember { mutableStateOf(false) }
 
     val haptic = LocalHapticFeedback.current
     val orpColorList      = ColorBlindness.getOrpColors(colorBlindnessMode)
@@ -131,19 +149,29 @@ fun ReaderScreen(
         }
 
         val wordContent: @Composable () -> Unit = {
-            Canvas(modifier = Modifier.size(width = 40.dp, height = 120.dp)) {
-                val sw = 2.dp.toPx()
-                val ll = 15.dp.toPx()
-                drawLine(currentOrpColor, Offset(size.width / 2, 0f), Offset(size.width / 2, ll), sw)
-                drawLine(currentOrpColor, Offset(size.width / 2, size.height - ll), Offset(size.width / 2, size.height), sw)
+            if (ttsActive && ttsDisplayMode == TTS_DISPLAY_FLOWING) {
+                FlowingTextDisplay(
+                    words          = state.words,
+                    currentIndex   = state.currentIndex,
+                    highlightColor = currentOrpColor,
+                    dimColor       = ReaderColors.textDimmed,
+                    fontFamily     = currentFontFamily
+                )
+            } else {
+                Canvas(modifier = Modifier.size(width = 40.dp, height = 120.dp)) {
+                    val sw = 2.dp.toPx()
+                    val ll = 15.dp.toPx()
+                    drawLine(currentOrpColor, Offset(size.width / 2, 0f), Offset(size.width / 2, ll), sw)
+                    drawLine(currentOrpColor, Offset(size.width / 2, size.height - ll), Offset(size.width / 2, size.height), sw)
+                }
+                ChunkWordDisplay(
+                    words        = currentChunk,
+                    fontSize     = fontSize.sp,
+                    showOrpColor = showOrp,
+                    orpColor     = currentOrpColor,
+                    fontFamily   = currentFontFamily
+                )
             }
-            ChunkWordDisplay(
-                words        = currentChunk,
-                fontSize     = fontSize.sp,
-                showOrpColor = showOrp,
-                orpColor     = currentOrpColor,
-                fontFamily   = currentFontFamily
-            )
         }
 
         val controlsContent: @Composable ColumnScope.() -> Unit = {
@@ -212,8 +240,18 @@ fun ReaderScreen(
                         tint = ReaderColors.textWarm
                     )
                 }
-                IconButton(onClick = { viewModel.adjustWpm(-25) }) {
-                    Text("−25", color = ReaderColors.textDimmed, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                if (ttsActive) {
+                    IconButton(
+                        onClick = { viewModel.adjustNarrationSpeed(-TTS_SPEED_STEP) },
+                        enabled = ttsNarrationSpeed > TTS_SPEED_MIN
+                    ) {
+                        Text("−", color = if (ttsNarrationSpeed > TTS_SPEED_MIN) currentOrpColor else ReaderColors.guideLine,
+                            fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                    }
+                } else {
+                    IconButton(onClick = { viewModel.adjustWpm(-25) }) {
+                        Text("−25", color = ReaderColors.textDimmed, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
                 }
                 FloatingActionButton(
                     onClick        = { viewModel.togglePlayPause() },
@@ -225,8 +263,18 @@ fun ReaderScreen(
                         if (state.isPlaying) "Pause" else "Play"
                     )
                 }
-                IconButton(onClick = { viewModel.adjustWpm(25) }) {
-                    Text("+25", color = ReaderColors.textDimmed, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                if (ttsActive) {
+                    IconButton(
+                        onClick = { viewModel.adjustNarrationSpeed(TTS_SPEED_STEP) },
+                        enabled = ttsNarrationSpeed < TTS_SPEED_MAX
+                    ) {
+                        Text("+", color = if (ttsNarrationSpeed < TTS_SPEED_MAX) currentOrpColor else ReaderColors.guideLine,
+                            fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                    }
+                } else {
+                    IconButton(onClick = { viewModel.adjustWpm(25) }) {
+                        Text("+25", color = ReaderColors.textDimmed, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
                 }
                 Box(
                     modifier = Modifier
@@ -249,81 +297,132 @@ fun ReaderScreen(
             }
 
             Spacer(Modifier.height(6.dp))
-            Text(
-                "${state.wpm} WPM",
-                color = currentOrpColor,
-                style = MaterialTheme.typography.labelMedium
-            )
-            if (ttsEnabled && !ttsUnavailable &&
-                state.wpm > com.badgr.orbreader.audio.TextToSpeechManager.MAX_EFFECTIVE_WPM) {
+            if (ttsActive) {
                 Text(
-                    "read-aloud caps near ${com.badgr.orbreader.audio.TextToSpeechManager.MAX_EFFECTIVE_WPM} WPM",
+                    "Narration ${"%.2f".format(ttsNarrationSpeed)}×",
+                    color = currentOrpColor,
+                    style = MaterialTheme.typography.labelMedium
+                )
+                Text(
+                    "≈ ${(ttsNarrationSpeed * 175).toInt()} wpm · voice speed (independent of RSVP)",
                     color    = ReaderColors.textDimmed,
                     fontSize = 10.sp
                 )
+            } else {
+                Text(
+                    "${state.wpm} WPM",
+                    color = currentOrpColor,
+                    style = MaterialTheme.typography.labelMedium
+                )
+                val wordsLeft = (state.words.size - state.currentIndex).coerceAtLeast(0)
+                val minsLeft  = wordsLeft / state.wpm.coerceAtLeast(1)
+                val timeLeft  = when {
+                    minsLeft < 1  -> "< 1 min"
+                    minsLeft < 60 -> "$minsLeft min"
+                    else          -> "${minsLeft / 60}h ${minsLeft % 60}m"
+                }
+                Text(
+                    "~$timeLeft left",
+                    color = ReaderColors.textDimmed,
+                    style = MaterialTheme.typography.labelSmall
+                )
             }
-            val wordsLeft = (state.words.size - state.currentIndex).coerceAtLeast(0)
-            val minsLeft  = wordsLeft / state.wpm.coerceAtLeast(1)
-            val timeLeft  = when {
-                minsLeft < 1  -> "< 1 min"
-                minsLeft < 60 -> "$minsLeft min"
-                else          -> "${minsLeft / 60}h ${minsLeft % 60}m"
-            }
-            Text(
-                "~$timeLeft left",
-                color = ReaderColors.textDimmed,
-                style = MaterialTheme.typography.labelSmall
-            )
 
             Spacer(Modifier.height(16.dp))
             HorizontalDivider(color = ReaderColors.guideLine)
             Spacer(Modifier.height(12.dp))
 
-            // ── Chunk size row ────────────────────────────────
-            Row(
-                modifier              = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment     = Alignment.CenterVertically
-            ) {
-                Text(
-                    "Words at a time",
-                    color    = ReaderColors.textDimmed,
-                    fontSize = 11.sp,
-                    modifier = Modifier.weight(1f)
-                )
-                IconButton(
-                    onClick  = { viewModel.adjustChunkSize(-1) },
-                    enabled  = chunkSize > 1
+            if (ttsActive) {
+                // ── TTS: display-mode toggle + voice picker ──────
+                Row(
+                    modifier              = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment     = Alignment.CenterVertically
                 ) {
                     Text(
-                        "−",
-                        color      = if (chunkSize > 1) currentOrpColor else ReaderColors.guideLine,
-                        fontSize   = 20.sp,
-                        fontWeight = FontWeight.Bold
+                        "Display",
+                        color    = ReaderColors.textDimmed,
+                        fontSize = 11.sp,
+                        modifier = Modifier.weight(1f)
+                    )
+                    SegmentedToggle(
+                        left        = "Focus word",
+                        right       = "Flowing",
+                        rightActive = ttsDisplayMode == TTS_DISPLAY_FLOWING,
+                        color       = currentOrpColor,
+                        onToggle    = { viewModel.cycleDisplayMode() }
                     )
                 }
-                Surface(
-                    color  = currentOrpColor.copy(alpha = 0.12f),
-                    shape  = RoundedCornerShape(6.dp)
+                Spacer(Modifier.height(10.dp))
+                Row(
+                    modifier              = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment     = Alignment.CenterVertically
                 ) {
                     Text(
-                        "$chunkSize",
-                        color      = currentOrpColor,
-                        fontSize   = 16.sp,
-                        fontWeight = FontWeight.Black,
-                        modifier   = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                        "Voice",
+                        color    = ReaderColors.textDimmed,
+                        fontSize = 11.sp,
+                        modifier = Modifier.weight(1f)
                     )
+                    TextButton(
+                        onClick = { showVoicePicker = true },
+                        enabled = ttsVoices.isNotEmpty()
+                    ) {
+                        Text(
+                            if (ttsVoices.isEmpty()) "default" else "Choose voice",
+                            color = if (ttsVoices.isEmpty()) ReaderColors.guideLine else currentOrpColor,
+                            fontSize = 13.sp
+                        )
+                    }
                 }
-                IconButton(
-                    onClick  = { viewModel.adjustChunkSize(1) },
-                    enabled  = chunkSize < 4
+            } else {
+                // ── Chunk size row ────────────────────────────────
+                Row(
+                    modifier              = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment     = Alignment.CenterVertically
                 ) {
                     Text(
-                        "+",
-                        color      = if (chunkSize < 4) currentOrpColor else ReaderColors.guideLine,
-                        fontSize   = 20.sp,
-                        fontWeight = FontWeight.Bold
+                        "Words at a time",
+                        color    = ReaderColors.textDimmed,
+                        fontSize = 11.sp,
+                        modifier = Modifier.weight(1f)
                     )
+                    IconButton(
+                        onClick  = { viewModel.adjustChunkSize(-1) },
+                        enabled  = chunkSize > 1
+                    ) {
+                        Text(
+                            "−",
+                            color      = if (chunkSize > 1) currentOrpColor else ReaderColors.guideLine,
+                            fontSize   = 20.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    Surface(
+                        color  = currentOrpColor.copy(alpha = 0.12f),
+                        shape  = RoundedCornerShape(6.dp)
+                    ) {
+                        Text(
+                            "$chunkSize",
+                            color      = currentOrpColor,
+                            fontSize   = 16.sp,
+                            fontWeight = FontWeight.Black,
+                            modifier   = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                        )
+                    }
+                    IconButton(
+                        onClick  = { viewModel.adjustChunkSize(1) },
+                        enabled  = chunkSize < 4
+                    ) {
+                        Text(
+                            "+",
+                            color      = if (chunkSize < 4) currentOrpColor else ReaderColors.guideLine,
+                            fontSize   = 20.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
             }
         }
@@ -398,5 +497,124 @@ fun ReaderScreen(
                 modifier          = Modifier.align(Alignment.TopCenter)
             )
         }
+
+        if (showVoicePicker) {
+            VoicePickerDialog(
+                voices     = ttsVoices,
+                selectedId = ttsVoiceId,
+                accent     = currentOrpColor,
+                onSelect   = { viewModel.selectVoice(it); showVoicePicker = false },
+                onDismiss  = { showVoicePicker = false }
+            )
+        }
     }
+}
+
+/** A2 read-along: flowing text with the spoken word highlighted; recenters as it advances. */
+@Composable
+private fun FlowingTextDisplay(
+    words: List<String>,
+    currentIndex: Int,
+    highlightColor: Color,
+    dimColor: Color,
+    fontFamily: androidx.compose.ui.text.font.FontFamily
+) {
+    val windowStart = (currentIndex - 24).coerceAtLeast(0)
+    val windowEnd   = (currentIndex + 60).coerceAtMost(words.size)
+    val text = androidx.compose.ui.text.buildAnnotatedString {
+        for (i in windowStart until windowEnd) {
+            if (i == currentIndex) {
+                withStyle(androidx.compose.ui.text.SpanStyle(color = highlightColor, fontWeight = FontWeight.Bold)) {
+                    append(words[i])
+                }
+            } else {
+                withStyle(androidx.compose.ui.text.SpanStyle(color = dimColor)) { append(words[i]) }
+            }
+            append(" ")
+        }
+    }
+    Text(
+        text       = text,
+        fontSize   = 20.sp,
+        lineHeight = 32.sp,
+        fontFamily = fontFamily,
+        textAlign  = androidx.compose.ui.text.style.TextAlign.Center,
+        modifier   = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp)
+    )
+}
+
+@Composable
+private fun SegmentedToggle(
+    left: String,
+    right: String,
+    rightActive: Boolean,
+    color: Color,
+    onToggle: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(6.dp))
+            .background(color.copy(alpha = 0.10f))
+    ) {
+        listOf(false, true).forEach { isRight ->
+            val selected = isRight == rightActive
+            Text(
+                text       = if (isRight) right else left,
+                color      = if (selected) ReaderColors.background else color,
+                fontSize   = 12.sp,
+                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                modifier   = Modifier
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(if (selected) color else Color.Transparent)
+                    .clickable { if (!selected) onToggle() }
+                    .padding(horizontal = 12.dp, vertical = 6.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun VoicePickerDialog(
+    voices: List<Pair<String, String>>,
+    selectedId: String?,
+    accent: Color,
+    onSelect: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    // Default to the first voice when none is explicitly chosen yet.
+    val effectiveSelected = selectedId ?: voices.firstOrNull()?.first
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor   = ReaderColors.background,
+        title = { Text("Choose a voice", color = ReaderColors.textWarm) },
+        text = {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                voices.forEach { (id, label) ->
+                    val isSel = id == effectiveSelected
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onSelect(id) }
+                            .padding(vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text       = label,
+                            color      = if (isSel) accent else ReaderColors.textWarm,
+                            fontSize   = 15.sp,
+                            fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal,
+                            modifier   = Modifier.weight(1f)
+                        )
+                        if (isSel) Text("●", color = accent, fontSize = 12.sp)
+                    }
+                    HorizontalDivider(color = ReaderColors.guideLine)
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("Close", color = accent) }
+        }
+    )
 }
