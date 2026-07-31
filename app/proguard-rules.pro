@@ -7,15 +7,18 @@
 }
 
 # ── Retrofit ──────────────────────────────────────────────────────────────────
+# Retrofit 2.11 ships its own consumer ProGuard rules; a blanket -keep is redundant
+# and blocks R8 optimization. Only the generic-signature/exception attributes are
+# still needed for its parameterized Call<T> return types.
 -dontwarn retrofit2.**
--keep class retrofit2.** { *; }
 -keepattributes Signature
 -keepattributes Exceptions
 
 # ── Gson ──────────────────────────────────────────────────────────────────────
+# Gson needs annotations + generic signatures and the app model classes (kept below),
+# not the Gson library classes themselves. Custom (de)serializers are still kept.
 -keepattributes *Annotation*
 -dontwarn sun.misc.**
--keep class com.google.gson.** { *; }
 -keep class * implements com.google.gson.TypeAdapterFactory
 -keep class * implements com.google.gson.JsonSerializer
 -keep class * implements com.google.gson.JsonDeserializer
@@ -26,9 +29,9 @@
 -dontwarn androidx.room.paging.**
 
 # ── OkHttp ────────────────────────────────────────────────────────────────────
+# OkHttp/Okio ship consumer rules; -dontwarn is sufficient, blanket -keep removed.
 -dontwarn okhttp3.**
 -dontwarn okio.**
--keep class okhttp3.** { *; }
 
 # ── App model classes (prevent Gson stripping) ────────────────────────────────
 -keep class com.badgr.orbreader.data.model.** { *; }

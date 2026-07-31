@@ -1,3 +1,12 @@
+## [3.4.2] — 2026-07-31
+
+### Changed
+- Release build optimization (R8), Tier A: removed redundant blanket `-keep` rules for Retrofit, OkHttp/Okio, and the Gson library — these libraries ship their own consumer ProGuard rules, so the blanket keeps only blocked R8 from shrinking/obfuscating them. Protective rules retained: `Signature`/`Exceptions`/annotation attributes, custom Gson (de)serializers, and all app model/entity classes (verified kept-unrenamed in the mapping, so serialization is unaffected). Firebase/GMS/Billing keeps deliberately left for a later, separately-tested tier
+
+### Notes
+- Modest size reduction (~0.1 MB); the larger optimization win (Firebase/GMS keeps) is deferred to a tier that requires release-build device regression testing of auth, sync, and purchases
+- Serialization paths (Retrofit/Gson) are only exercised in release builds — smoke-test book import before wide rollout
+
 ## [3.4.1] — 2026-07-31
 
 ### Added
