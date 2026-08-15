@@ -32,6 +32,7 @@ android {
             "BACKEND_BASE_URL",
             "\"https://badgr-text-service.onrender.com\""
         )
+        buildConfigField("String", "CWALTS_BASE_URL", "\"http://localhost:8765/\"")
     }
 
     room {
@@ -57,6 +58,7 @@ android {
             signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = true
             isShrinkResources = true
+            buildConfigField("String", "CWALTS_BASE_URL", "\"https://cwalts.invalid/\"")
             ndk {
                 debugSymbolLevel = "SYMBOL_TABLE"
             }
@@ -89,6 +91,7 @@ android {
 }
 
 dependencies {
+    testImplementation(libs.junit)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.compose)

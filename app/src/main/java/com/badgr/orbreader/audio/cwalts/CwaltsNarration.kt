@@ -1,0 +1,100 @@
+package com.badgr.orbreader.audio.cwalts
+
+import android.content.Context
+import android.media.AudioAttributes
+import android.media.MediaPlayer
+import com.badgr.orbreader.BuildConfig
+import com.badgr.orbreader.data.model.Book
+import com.badgr.orbreader.util.BookCategorizer
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
+import retrofit2.Retrofit
+import retrofit2.converter.gson.GsonConverterFactory
+import java.io.File
+import java.security.MessageDigest
+
+enum class CwaltsNarrationState { Unavailable, Idle, Preparing, Queued, Processing, Ready, Playing, Paused, Failed }
+
+data class CwaltsNarrationStatus(
+    val state: CwaltsNarrationState = CwaltsNarrationState.Idle,
+    val segmentIndex: Int = 0,
+    val segmentCount: Int = 0,
+    val message: String? = null
+)
+
+object CwaltsMetadata {
+    fun fromBook(book: Book): Map<String, String> = when (book.category) {
+        BookCategorizer.SCIENCE -> mapOf("domain" to "educational", "content_mode" to "informational")
+        BookCategorizer.TECHNOLOGY -> mapOf("domain" to "technical", "content_mode" to "instructional")
+        BookCategorizer.FICTION -> mapOf("content_mode" to "narrative")
+        else -> emptyMap()
+    }
+}
+
+class CwaltsNarrationController(private val context: Context) {
+    private val api: CwaltsNarrationApi by lazy {
+        Retrofit.Builder()
+            .baseUrl(BuildConfig.CWALTS_BASE_URL.trimEnd('/') + "/")
+            .client(OkHttpClient.Builder().build())
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+            .create(CwaltsNarrationApi::class.java)
+    }
+    private val cacheRoot = File(context.filesDir, "cwalts")
+    private var player: MediaPlayer? = null
+
+    suspend fun synthesize(book: Book, canonicalText: String): List<File> = withContext(Dispatchers.IO) {
+        val chunks = CwaltsNarrationChunker.split(canonicalText)
+        val directory = File(cacheRoot, book.id).apply { mkdirs() }
+        val output = mutableListOf<File>()
+        chunks.forEachIndexed { index, text ->
+            val hash = sha256("${book.id}|$index|$text|B.Lawson|F5TTS_v1_Base")
+            val target = File(directory, "%06d_%s.wav".format(index, hash))
+            if (!target.isFile || target.length() == 0L) {
+                val accepted = api.narrate(CwaltsNarrateRequest(text, CwaltsMetadata.fromBook(book)))
+                check(accepted.isSuccessful && accepted.body() != null) { "C.Walts request failed" }
+                val id = accepted.body()!!.jobId
+                var status = "queued"
+                while (status == "queued" || status == "running") {
+                    delay(2000)
+                    val response = api.job(id)
+                    check(response.isSuccessful && response.body() != null) { "C.Walts job status failed" }
+                    status = response.body()!!.status
+                }
+                check(status == "completed") { "C.Walts job failed" }
+                val audio = api.audio(id)
+                check(audio.isSuccessful && audio.body() != null) { "C.Walts audio download failed" }
+                val temp = File(directory, ".$hash.tmp")
+                audio.body()!!.byteStream().use { input -> temp.outputStream().use { input.copyTo(it) } }
+                check(temp.length() > 44L) { "C.Walts returned empty audio" }
+                check(temp.renameTo(target)) { "C.Walts audio cache commit failed" }
+            }
+            output += target
+        }
+        output
+    }
+
+    fun play(file: File, onComplete: () -> Unit = {}) {
+        player?.release()
+        player = MediaPlayer().apply {
+            setAudioAttributes(AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_MEDIA)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                .build())
+            setDataSource(file.absolutePath)
+            setOnCompletionListener { onComplete() }
+            prepare()
+            playbackParams = playbackParams.setSpeed(1.0f)
+            start()
+        }
+    }
+
+    fun pause() { player?.pause() }
+    fun resume() { player?.start() }
+    fun stop() { player?.stop(); player?.release(); player = null }
+
+    private fun sha256(value: String): String = MessageDigest.getInstance("SHA-256")
+        .digest(value.toByteArray()).joinToString("") { "%02x".format(it) }
+}

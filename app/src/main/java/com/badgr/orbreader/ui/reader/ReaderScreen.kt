@@ -41,6 +41,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.badgr.orbreader.audio.TextToSpeechManager
+import com.badgr.orbreader.audio.cwalts.CwaltsNarrationState
 import com.badgr.orbreader.data.preferences.TTS_DISPLAY_FLOWING
 import com.badgr.orbreader.data.preferences.TTS_SPEED_MAX
 import com.badgr.orbreader.data.preferences.TTS_SPEED_MIN
@@ -78,6 +79,7 @@ fun ReaderScreen(
     val ttsVoices           by viewModel.ttsVoices.collectAsState()
     val ttsVoiceId          by viewModel.ttsVoiceId.collectAsState()
     val ttsLanguageMissing  by viewModel.ttsLanguageUnavailable.collectAsState()
+    val cwaltsStatus        by viewModel.cwaltsStatus.collectAsState()
 
     val context = LocalContext.current
 
@@ -180,6 +182,39 @@ fun ReaderScreen(
         }
 
         val controlsContent: @Composable ColumnScope.() -> Unit = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("C.Walts Narration", color = ReaderColors.textDimmed, fontSize = 12.sp)
+                TextButton(
+                    onClick = {
+                        if (cwaltsStatus.state == CwaltsNarrationState.Playing) {
+                            viewModel.stopCwaltsNarration()
+                        } else {
+                            viewModel.startCwaltsNarration()
+                        }
+                    },
+                    enabled = cwaltsStatus.state != CwaltsNarrationState.Preparing &&
+                        cwaltsStatus.state != CwaltsNarrationState.Processing
+                ) {
+                    Text(
+                        when (cwaltsStatus.state) {
+                            CwaltsNarrationState.Playing -> "Stop"
+                            CwaltsNarrationState.Failed -> "Retry"
+                            CwaltsNarrationState.Ready -> "Play"
+                            else -> "Narrate"
+                        },
+                        color = currentOrpColor,
+                        fontSize = 13.sp
+                    )
+                }
+            }
+            if (cwaltsStatus.state == CwaltsNarrationState.Preparing ||
+                cwaltsStatus.state == CwaltsNarrationState.Processing) {
+                Text("Preparing narration…", color = ReaderColors.textDimmed, fontSize = 11.sp)
+            }
             // Read-aloud enabled but the active engine has no voice data for this language.
             if (ttsEnabled && !ttsUnavailable && ttsLanguageMissing) {
                 Surface(

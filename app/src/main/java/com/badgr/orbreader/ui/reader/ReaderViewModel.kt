@@ -5,6 +5,9 @@ import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.badgr.orbreader.audio.TextToSpeechManager
+import com.badgr.orbreader.audio.cwalts.CwaltsNarrationController
+import com.badgr.orbreader.audio.cwalts.CwaltsNarrationState
+import com.badgr.orbreader.audio.cwalts.CwaltsNarrationStatus
 import com.badgr.orbreader.data.local.BookDatabase
 import com.badgr.orbreader.data.preferences.TTS_DISPLAY_ORP
 import com.badgr.orbreader.data.preferences.TTS_SPEED_MAX
@@ -25,6 +28,7 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.withContext
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -49,6 +53,9 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
         achievementDao = db.achievementDao()
     )
     private val prefsRepo = UserPreferencesRepository(application)
+    private val cwalts = CwaltsNarrationController(application)
+    private val _cwaltsStatus = MutableStateFlow(CwaltsNarrationStatus())
+    val cwaltsStatus: StateFlow<CwaltsNarrationStatus> = _cwaltsStatus.asStateFlow()
 
     private val _state = MutableStateFlow(ReaderUiState())
     val state: StateFlow<ReaderUiState> = _state.asStateFlow()
@@ -193,6 +200,7 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
     val newAchievements: StateFlow<List<String>> = _newAchievements.asStateFlow()
 
     private var currentBookId     : String  = ""
+    private var currentBook: com.badgr.orbreader.data.model.Book? = null
     private var sessionStartIndex : Int     = -1
     private var sessionHasStarted : Boolean = false
     private var sessionActiveMs   : Long    = 0L
@@ -207,6 +215,7 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
             val entity     = db.bookDao().getBookById(bookId)
             val savedIndex = entity?.currentWordIndex ?: 0
             _bookTitle.value = entity?.title ?: ""
+            currentBook = entity?.toDomain()
             val words    = repo.loadWords(bookId)
             val savedWpm = prefsRepo.preferences.first().defaultWpm
             _state.update {
@@ -215,6 +224,34 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
             detectChapters(words)
             sentenceStarts = computeSentences(words)
         }
+    }
+
+    fun startCwaltsNarration() {
+        val book = currentBook ?: return
+        if (_cwaltsStatus.value.state == CwaltsNarrationState.Preparing ||
+            _cwaltsStatus.value.state == CwaltsNarrationState.Processing) return
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                _cwaltsStatus.value = CwaltsNarrationStatus(CwaltsNarrationState.Preparing)
+                val text = _state.value.words.joinToString(" ")
+                val files = cwalts.synthesize(book, text)
+                _cwaltsStatus.value = CwaltsNarrationStatus(CwaltsNarrationState.Ready, segmentCount = files.size)
+                withContext(Dispatchers.Main) {
+                    cwalts.play(files.first()) {
+                        _cwaltsStatus.value = CwaltsNarrationStatus(CwaltsNarrationState.Ready, segmentCount = files.size)
+                    }
+                    _cwaltsStatus.value = CwaltsNarrationStatus(CwaltsNarrationState.Playing, segmentCount = files.size)
+                }
+            } catch (error: Exception) {
+                Log.w("CwaltsNarration", "Narration failed: ${error::class.simpleName}")
+                _cwaltsStatus.value = CwaltsNarrationStatus(CwaltsNarrationState.Failed, message = "C.Walts unavailable")
+            }
+        }
+    }
+
+    fun stopCwaltsNarration() {
+        cwalts.stop()
+        _cwaltsStatus.value = CwaltsNarrationStatus(CwaltsNarrationState.Idle)
     }
 
     // Word indices where each spoken sentence begins. Also caps very long runs so no
@@ -509,6 +546,7 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
     @OptIn(DelicateCoroutinesApi::class)
     override fun onCleared() {
         stopPlayback()
+        cwalts.stop()
         ttsManager?.shutdown()
         // viewModelScope is cancelled before onCleared() runs, so coroutines launched there die
         // immediately. Use GlobalScope + NonCancellable to guarantee the word index reaches Room
