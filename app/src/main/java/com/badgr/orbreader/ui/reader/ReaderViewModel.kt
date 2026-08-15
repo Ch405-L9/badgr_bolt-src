@@ -19,11 +19,13 @@ import com.badgr.orbreader.sync.CloudSyncManager
 import com.badgr.orbreader.util.OrpEngine
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -201,6 +203,7 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
 
     private var currentBookId     : String  = ""
     private var currentBook: com.badgr.orbreader.data.model.Book? = null
+    private var cwaltsJob: Job? = null
     private var sessionStartIndex : Int     = -1
     private var sessionHasStarted : Boolean = false
     private var sessionActiveMs   : Long    = 0L
@@ -230,19 +233,26 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
         val book = currentBook ?: return
         if (_cwaltsStatus.value.state == CwaltsNarrationState.Preparing ||
             _cwaltsStatus.value.state == CwaltsNarrationState.Processing) return
-        viewModelScope.launch(Dispatchers.IO) {
+        cwaltsJob?.cancel()
+        cwaltsJob = viewModelScope.launch(Dispatchers.IO) {
             try {
                 _cwaltsStatus.value = CwaltsNarrationStatus(CwaltsNarrationState.Preparing)
-                val text = _state.value.words.joinToString(" ")
-                val files = cwalts.synthesize(book, text)
-                _cwaltsStatus.value = CwaltsNarrationStatus(CwaltsNarrationState.Ready, segmentCount = files.size)
-                withContext(Dispatchers.Main) {
-                    cwalts.play(files.first()) {
-                        _cwaltsStatus.value = CwaltsNarrationStatus(CwaltsNarrationState.Ready, segmentCount = files.size)
+                val text = repo.loadCanonicalText(book.id)
+                val chunks = com.badgr.orbreader.audio.cwalts.CwaltsNarrationChunker.split(text)
+                chunks.forEachIndexed { index, _ ->
+                    ensureActive()
+                    _cwaltsStatus.value = CwaltsNarrationStatus(CwaltsNarrationState.Processing, index, chunks.size)
+                    val file = cwalts.prepareSegment(book, text, index)
+                    val completed = CompletableDeferred<Unit>()
+                    withContext(Dispatchers.Main) {
+                        cwalts.play(file) { completed.complete(Unit) }
+                        _cwaltsStatus.value = CwaltsNarrationStatus(CwaltsNarrationState.Playing, index, chunks.size)
                     }
-                    _cwaltsStatus.value = CwaltsNarrationStatus(CwaltsNarrationState.Playing, segmentCount = files.size)
+                    completed.await()
                 }
+                _cwaltsStatus.value = CwaltsNarrationStatus(CwaltsNarrationState.Ready, segmentCount = chunks.size)
             } catch (error: Exception) {
+                if (!isActive) return@launch
                 Log.w("CwaltsNarration", "Narration failed: ${error::class.simpleName}")
                 _cwaltsStatus.value = CwaltsNarrationStatus(CwaltsNarrationState.Failed, message = "C.Walts unavailable")
             }

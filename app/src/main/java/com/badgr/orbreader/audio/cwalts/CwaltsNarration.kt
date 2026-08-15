@@ -45,35 +45,33 @@ class CwaltsNarrationController(private val context: Context) {
     private val cacheRoot = File(context.filesDir, "cwalts")
     private var player: MediaPlayer? = null
 
-    suspend fun synthesize(book: Book, canonicalText: String): List<File> = withContext(Dispatchers.IO) {
+    suspend fun prepareSegment(book: Book, canonicalText: String, segmentIndex: Int): File = withContext(Dispatchers.IO) {
         val chunks = CwaltsNarrationChunker.split(canonicalText)
+        require(segmentIndex in chunks.indices)
+        val text = chunks[segmentIndex]
         val directory = File(cacheRoot, book.id).apply { mkdirs() }
-        val output = mutableListOf<File>()
-        chunks.forEachIndexed { index, text ->
-            val hash = sha256("${book.id}|$index|$text|B.Lawson|F5TTS_v1_Base")
-            val target = File(directory, "%06d_%s.wav".format(index, hash))
-            if (!target.isFile || target.length() == 0L) {
-                val accepted = api.narrate(CwaltsNarrateRequest(text, CwaltsMetadata.fromBook(book)))
-                check(accepted.isSuccessful && accepted.body() != null) { "C.Walts request failed" }
-                val id = accepted.body()!!.jobId
-                var status = "queued"
-                while (status == "queued" || status == "running") {
-                    delay(2000)
-                    val response = api.job(id)
-                    check(response.isSuccessful && response.body() != null) { "C.Walts job status failed" }
-                    status = response.body()!!.status
-                }
-                check(status == "completed") { "C.Walts job failed" }
-                val audio = api.audio(id)
-                check(audio.isSuccessful && audio.body() != null) { "C.Walts audio download failed" }
-                val temp = File(directory, ".$hash.tmp")
-                audio.body()!!.byteStream().use { input -> temp.outputStream().use { input.copyTo(it) } }
-                check(temp.length() > 44L) { "C.Walts returned empty audio" }
-                check(temp.renameTo(target)) { "C.Walts audio cache commit failed" }
+        val hash = sha256("${book.id}|$segmentIndex|$text|B.Lawson|F5TTS_v1_Base")
+        val target = File(directory, "%06d_%s.wav".format(segmentIndex, hash))
+        if (!target.isFile || target.length() == 0L) {
+            val accepted = api.narrate(CwaltsNarrateRequest(text, CwaltsMetadata.fromBook(book)))
+            check(accepted.isSuccessful && accepted.body() != null) { "C.Walts request failed" }
+            val id = accepted.body()!!.jobId
+            var status = "queued"
+            while (status == "queued" || status == "running") {
+                delay(2000)
+                val response = api.job(id)
+                check(response.isSuccessful && response.body() != null) { "C.Walts job status failed" }
+                status = response.body()!!.status
             }
-            output += target
+            check(status == "completed") { "C.Walts job failed" }
+            val audio = api.audio(id)
+            check(audio.isSuccessful && audio.body() != null) { "C.Walts audio download failed" }
+            val temp = File(directory, ".$hash.tmp")
+            audio.body()!!.byteStream().use { input -> temp.outputStream().use { input.copyTo(it) } }
+            check(temp.length() > 44L) { "C.Walts returned empty audio" }
+            check(temp.renameTo(target)) { "C.Walts audio cache commit failed" }
         }
-        output
+        target
     }
 
     fun play(file: File, onComplete: () -> Unit = {}) {

@@ -59,7 +59,7 @@ class BookRepository(
                     coverPath = null,
                     category  = BookCategorizer.categorize(fileName, words.take(200))
                 )
-                saveBook(book, words)
+                saveBook(book, words, text)
                 ImportResult.Success(book)
             } catch (e: Exception) {
                 ImportResult.Error("Failed to read TXT: ${e.localizedMessage}")
@@ -158,7 +158,7 @@ class BookRepository(
                 coverPath = coverPath,
                 category  = category
             )
-            saveBook(book, words)
+            saveBook(book, words, body.text)
             ImportResult.Success(book)
 
         } catch (e: Exception) {
@@ -174,9 +174,15 @@ class BookRepository(
         gson.fromJson(json, type) ?: emptyList()
     }
 
+    suspend fun loadCanonicalText(bookId: String): String = withContext(Dispatchers.IO) {
+        val file = canonicalTextFile(bookId)
+        if (file.exists()) file.readText() else loadWords(bookId).joinToString(" ")
+    }
+
     suspend fun deleteBook(book: Book) = withContext(Dispatchers.IO) {
         bookDao.deleteBookById(book.id)
         wordFile(book.id).delete()
+        canonicalTextFile(book.id).delete()
         book.coverPath?.let { File(it).delete() }
     }
 
@@ -184,19 +190,24 @@ class BookRepository(
         bookDao.updateCategory(bookId, category)
     }
 
-    private suspend fun saveBook(book: Book, words: List<String>) {
+    private suspend fun saveBook(book: Book, words: List<String>, canonicalText: String) {
         val target = wordFile(book.id)
         val tmp = File(target.parent, "${target.name}.tmp")
+        val textTarget = canonicalTextFile(book.id)
+        val textTmp = File(textTarget.parent, "${textTarget.name}.tmp")
         try {
             tmp.writeText(gson.toJson(words))
+            textTmp.writeText(canonicalText)
             // rename() is atomic on the same filesystem (internal storage) — target is either
             // the old file or the new file, never a partial write.
             if (!tmp.renameTo(target)) {
                 // Cross-filesystem fallback (should not happen on internal storage).
                 target.writeText(gson.toJson(words))
             }
+            if (!textTmp.renameTo(textTarget)) textTarget.writeText(canonicalText)
         } finally {
             if (tmp.exists()) tmp.delete()
+            if (textTmp.exists()) textTmp.delete()
         }
         bookDao.insertBook(BookEntity.fromDomain(book))
     }
@@ -252,6 +263,9 @@ class BookRepository(
 
     private fun wordFile(bookId: String): File =
         File(context.filesDir, "words_$bookId.json")
+
+    private fun canonicalTextFile(bookId: String): File =
+        File(context.filesDir, "text_$bookId.txt")
 
     private fun readTextFromUri(resolver: ContentResolver, uri: Uri): String =
         resolver.openInputStream(uri)?.use { it.bufferedReader().readText() }
