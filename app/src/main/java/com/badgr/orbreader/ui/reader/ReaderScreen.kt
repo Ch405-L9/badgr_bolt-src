@@ -193,10 +193,21 @@ fun ReaderScreen(
                     )
                 }
             }
-            if (cwaltsStatus.state == CwaltsNarrationState.Preparing ||
-                cwaltsStatus.state == CwaltsNarrationState.Processing) {
-                Text("Preparing narration…", color = ReaderColors.textDimmed, fontSize = 11.sp)
-            }
+            Text(
+                when (cwaltsStatus.state) {
+                    CwaltsNarrationState.Preparing -> "Connecting to C.Walts…"
+                    CwaltsNarrationState.Processing ->
+                        "Generating ${cwaltsStatus.segmentIndex + 1} / ${cwaltsStatus.segmentCount}…"
+                    CwaltsNarrationState.Playing ->
+                        "Playing ${cwaltsStatus.segmentIndex + 1} / ${cwaltsStatus.segmentCount}" +
+                            if (cwaltsStatus.message != null) " · ${cwaltsStatus.message}" else ""
+                    CwaltsNarrationState.Ready -> "Narration ready"
+                    CwaltsNarrationState.Failed -> "C.Walts unavailable — Retry"
+                    else -> ""
+                },
+                color = ReaderColors.textDimmed,
+                fontSize = 11.sp
+            )
             // Progress info row: word count + chapter indicator
             Row(
                 modifier              = Modifier.fillMaxWidth(),

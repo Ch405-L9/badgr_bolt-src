@@ -20,6 +20,8 @@ import com.badgr.orbreader.util.OrpEngine
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.async
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
@@ -240,18 +242,48 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
             try {
                 _cwaltsStatus.value = CwaltsNarrationStatus(CwaltsNarrationState.Preparing)
                 cwalts.verifyHealth()
-                val text = repo.loadCanonicalText(book.id)
-                val chunks = com.badgr.orbreader.audio.cwalts.CwaltsNarrationChunker.split(text)
+                val canonicalText = repo.loadCanonicalText(book.id)
+                Log.i("CwaltsNarration", "canonical_text_loaded chars=${canonicalText.length}")
+                val chapterText = currentChapterText(canonicalText)
+                val chunks = com.badgr.orbreader.audio.cwalts.CwaltsNarrationChunker.split(chapterText)
+                Log.i("CwaltsNarration", "chapter_selected index=${currentChapterIndex.value} chars=${chapterText.length} chunks=${chunks.size}")
+                if (chunks.isEmpty()) throw IllegalStateException("empty_canonical_text")
+                _cwaltsStatus.value = CwaltsNarrationStatus(
+                    CwaltsNarrationState.Processing,
+                    segmentIndex = 0,
+                    segmentCount = chunks.size
+                )
+                var currentFile = cwalts.prepareSegment(book, chapterText, 0)
                 chunks.forEachIndexed { index, _ ->
                     ensureActive()
-                    _cwaltsStatus.value = CwaltsNarrationStatus(CwaltsNarrationState.Processing, index, chunks.size)
-                    val file = cwalts.prepareSegment(book, text, index)
+                    _cwaltsStatus.value = CwaltsNarrationStatus(
+                        CwaltsNarrationState.Processing,
+                        segmentIndex = index,
+                        segmentCount = chunks.size
+                    )
+                    val nextFile: Deferred<java.io.File>? = if (index + 1 < chunks.size) {
+                        async(Dispatchers.IO) {
+                            _cwaltsStatus.value = CwaltsNarrationStatus(
+                                CwaltsNarrationState.Playing,
+                                segmentIndex = index,
+                                segmentCount = chunks.size,
+                                message = "Preparing next…"
+                            )
+                            cwalts.prepareSegment(book, chapterText, index + 1)
+                        }
+                    } else null
                     val completed = CompletableDeferred<Unit>()
                     withContext(Dispatchers.Main) {
-                        cwalts.play(file) { completed.complete(Unit) }
-                        _cwaltsStatus.value = CwaltsNarrationStatus(CwaltsNarrationState.Playing, index, chunks.size)
+                        cwalts.play(currentFile) { completed.complete(Unit) }
+                        _cwaltsStatus.value = CwaltsNarrationStatus(
+                            CwaltsNarrationState.Playing,
+                            segmentIndex = index,
+                            segmentCount = chunks.size,
+                            message = if (nextFile != null) "Preparing next…" else null
+                        )
                     }
                     completed.await()
+                    currentFile = nextFile?.await() ?: currentFile
                 }
                 _cwaltsStatus.value = CwaltsNarrationStatus(CwaltsNarrationState.Ready, segmentCount = chunks.size)
             } catch (error: Exception) {
@@ -264,6 +296,32 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
                 Log.w("CwaltsNarration", "Narration failed category=$failure")
                 _cwaltsStatus.value = CwaltsNarrationStatus(CwaltsNarrationState.Failed, message = "C.Walts unavailable")
             }
+        }
+    }
+
+    private suspend fun currentChapterText(canonicalText: String): String {
+        val words = _state.value.words
+        val chapterIndex = _chapterStarts.value.indexOfLast { it <= _state.value.currentIndex }
+            .coerceAtLeast(0)
+        val startWord = _chapterStarts.value[chapterIndex]
+        val endWord = _chapterStarts.value.getOrElse(chapterIndex + 1) { words.size }
+        var cursor = 0
+        var startChar = -1
+        var endChar = -1
+        for (index in 0 until endWord.coerceAtMost(words.size)) {
+            val position = canonicalText.indexOf(words[index], cursor)
+            if (position < 0) {
+                Log.w("CwaltsNarration", "chapter_span_fallback reason=word_not_found")
+                return canonicalText
+            }
+            if (index == startWord) startChar = position
+            if (index == endWord - 1) endChar = position + words[index].length
+            cursor = position + words[index].length
+        }
+        return if (startChar >= 0 && endChar >= startChar) {
+            canonicalText.substring(startChar, endChar)
+        } else {
+            canonicalText
         }
     }
 

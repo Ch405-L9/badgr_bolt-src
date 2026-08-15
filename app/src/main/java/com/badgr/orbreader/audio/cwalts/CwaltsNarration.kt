@@ -3,6 +3,7 @@ package com.badgr.orbreader.audio.cwalts
 import android.content.Context
 import android.media.AudioAttributes
 import android.media.MediaPlayer
+import android.util.Log
 import com.badgr.orbreader.BuildConfig
 import com.badgr.orbreader.data.model.Book
 import com.badgr.orbreader.util.BookCategorizer
@@ -50,6 +51,7 @@ class CwaltsNarrationController(private val context: Context) {
         check(response.isSuccessful && response.body()?.provider == "f5_local") {
             "C.Walts health unavailable"
         }
+        Log.i("CwaltsNarration", "health provider=f5_local voice=${response.body()?.voice}")
     }
 
     suspend fun prepareSegment(book: Book, canonicalText: String, segmentIndex: Int): File = withContext(Dispatchers.IO) {
@@ -60,28 +62,35 @@ class CwaltsNarrationController(private val context: Context) {
         val hash = sha256("${book.id}|$segmentIndex|$text|B.Lawson|F5TTS_v1_Base")
         val target = File(directory, "%06d_%s.wav".format(segmentIndex, hash))
         if (!target.isFile || target.length() == 0L) {
+            Log.i("CwaltsNarration", "segment=$segmentIndex cache=miss chars=${text.length}")
             val accepted = api.narrate(CwaltsNarrateRequest(text, CwaltsMetadata.fromBook(book)))
             check(accepted.isSuccessful && accepted.body() != null) { "C.Walts request failed" }
             val id = accepted.body()!!.jobId
+            Log.i("CwaltsNarration", "segment=$segmentIndex post=accepted job=$id")
             var status = "queued"
             while (status == "queued" || status == "running") {
                 delay(2000)
                 val response = api.job(id)
                 check(response.isSuccessful && response.body() != null) { "C.Walts job status failed" }
+                Log.i("CwaltsNarration", "segment=$segmentIndex job=$id status=${response.body()!!.status}")
                 status = response.body()!!.status
             }
             check(status == "completed") { "C.Walts job failed" }
             val audio = api.audio(id)
             check(audio.isSuccessful && audio.body() != null) { "C.Walts audio download failed" }
+            Log.i("CwaltsNarration", "segment=$segmentIndex audio=downloaded")
             val temp = File(directory, ".$hash.tmp")
             audio.body()!!.byteStream().use { input -> temp.outputStream().use { input.copyTo(it) } }
             check(temp.length() > 44L) { "C.Walts returned empty audio" }
             check(temp.renameTo(target)) { "C.Walts audio cache commit failed" }
+        } else {
+            Log.i("CwaltsNarration", "segment=$segmentIndex cache=hit")
         }
         target
     }
 
     fun play(file: File, onComplete: () -> Unit = {}) {
+        Log.i("CwaltsNarration", "playback=start file=${file.name}")
         player?.release()
         player = MediaPlayer().apply {
             setAudioAttributes(AudioAttributes.Builder()
@@ -89,7 +98,10 @@ class CwaltsNarrationController(private val context: Context) {
                 .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
                 .build())
             setDataSource(file.absolutePath)
-            setOnCompletionListener { onComplete() }
+            setOnCompletionListener {
+                Log.i("CwaltsNarration", "playback=complete file=${file.name}")
+                onComplete()
+            }
             prepare()
             playbackParams = playbackParams.setSpeed(1.0f)
             start()
