@@ -12,8 +12,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.VolumeOff
-import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
@@ -40,7 +38,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.badgr.orbreader.audio.TextToSpeechManager
 import com.badgr.orbreader.audio.cwalts.CwaltsNarrationState
 import com.badgr.orbreader.data.preferences.TTS_DISPLAY_FLOWING
 import com.badgr.orbreader.data.preferences.TTS_SPEED_MAX
@@ -81,9 +78,9 @@ fun ReaderScreen(
     val ttsLanguageMissing  by viewModel.ttsLanguageUnavailable.collectAsState()
     val cwaltsStatus        by viewModel.cwaltsStatus.collectAsState()
 
-    val context = LocalContext.current
-
-    val ttsActive = ttsEnabled && !ttsUnavailable
+    // C.Walts is the sole audible narration engine. The RSVP/ORP play button below
+    // remains visual-only and never routes through Android system TTS.
+    val ttsActive = false
     var showVoicePicker by remember { mutableStateOf(false) }
 
     val haptic = LocalHapticFeedback.current
@@ -125,21 +122,6 @@ fun ReaderScreen(
                     )
                 },
                 actions = {
-                    IconButton(
-                        onClick = { viewModel.setTtsEnabled(!ttsEnabled) },
-                        enabled = !ttsUnavailable
-                    ) {
-                        Icon(
-                            if (ttsEnabled && !ttsUnavailable) Icons.AutoMirrored.Filled.VolumeUp
-                            else Icons.AutoMirrored.Filled.VolumeOff,
-                            contentDescription = if (ttsEnabled) "Turn off read aloud" else "Turn on read aloud",
-                            tint = when {
-                                ttsUnavailable                -> ReaderColors.guideLine
-                                ttsEnabled                    -> currentOrpColor
-                                else                          -> ReaderColors.textWarm
-                            }
-                        )
-                    }
                     IconButton(onClick = { viewModel.saveProgress(); onBack() }) {
                         Icon(Icons.Default.Close, contentDescription = "Close", tint = ReaderColors.textWarm)
                     }
@@ -214,37 +196,6 @@ fun ReaderScreen(
             if (cwaltsStatus.state == CwaltsNarrationState.Preparing ||
                 cwaltsStatus.state == CwaltsNarrationState.Processing) {
                 Text("Preparing narration…", color = ReaderColors.textDimmed, fontSize = 11.sp)
-            }
-            // Read-aloud enabled but the active engine has no voice data for this language.
-            if (ttsEnabled && !ttsUnavailable && ttsLanguageMissing) {
-                Surface(
-                    color    = ReaderColors.orpFocal.copy(alpha = 0.12f),
-                    shape    = RoundedCornerShape(8.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 12.dp)
-                ) {
-                    Column(Modifier.padding(12.dp)) {
-                        Text(
-                            "Read-aloud needs a voice for your language",
-                            color = ReaderColors.textWarm,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Text(
-                            "Your text-to-speech engine has no voice installed for this language. Install one or switch engines in system settings.",
-                            color = ReaderColors.textDimmed,
-                            fontSize = 11.sp
-                        )
-                        Spacer(Modifier.height(6.dp))
-                        TextButton(
-                            onClick = { TextToSpeechManager.openSystemTtsSettings(context) },
-                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
-                        ) {
-                            Text("Open TTS settings", color = currentOrpColor, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                        }
-                    }
-                }
             }
             // Progress info row: word count + chapter indicator
             Row(
@@ -460,22 +411,6 @@ fun ReaderScreen(
                             color = if (ttsVoices.isEmpty()) ReaderColors.guideLine else currentOrpColor,
                             fontSize = 13.sp
                         )
-                    }
-                }
-                Spacer(Modifier.height(4.dp))
-                Row(
-                    modifier              = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment     = Alignment.CenterVertically
-                ) {
-                    Text(
-                        "Engine & voices",
-                        color    = ReaderColors.textDimmed,
-                        fontSize = 11.sp,
-                        modifier = Modifier.weight(1f)
-                    )
-                    TextButton(onClick = { TextToSpeechManager.openSystemTtsSettings(context) }) {
-                        Text("System TTS settings", color = currentOrpColor, fontSize = 13.sp)
                     }
                 }
             } else {

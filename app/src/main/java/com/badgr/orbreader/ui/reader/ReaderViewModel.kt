@@ -31,6 +31,8 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.withContext
+import java.net.ConnectException
+import java.net.SocketTimeoutException
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -237,6 +239,7 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
         cwaltsJob = viewModelScope.launch(Dispatchers.IO) {
             try {
                 _cwaltsStatus.value = CwaltsNarrationStatus(CwaltsNarrationState.Preparing)
+                cwalts.verifyHealth()
                 val text = repo.loadCanonicalText(book.id)
                 val chunks = com.badgr.orbreader.audio.cwalts.CwaltsNarrationChunker.split(text)
                 chunks.forEachIndexed { index, _ ->
@@ -253,7 +256,12 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
                 _cwaltsStatus.value = CwaltsNarrationStatus(CwaltsNarrationState.Ready, segmentCount = chunks.size)
             } catch (error: Exception) {
                 if (!isActive) return@launch
-                Log.w("CwaltsNarration", "Narration failed: ${error::class.simpleName}")
+                val failure = when (error) {
+                    is ConnectException -> "connection_failure"
+                    is SocketTimeoutException -> "timeout"
+                    else -> error::class.simpleName ?: "unknown_failure"
+                }
+                Log.w("CwaltsNarration", "Narration failed category=$failure")
                 _cwaltsStatus.value = CwaltsNarrationStatus(CwaltsNarrationState.Failed, message = "C.Walts unavailable")
             }
         }
@@ -430,7 +438,9 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
 
     private fun startPlayback() {
         playJob?.cancel()
-        val useTts = ttsEnabled.value && !_ttsUnavailable.value
+        // The reader play button is RSVP/ORP-only. Audible narration is exclusively
+        // started through the C.Walts control and never falls back to Android TTS.
+        val useTts = false
         playJob = if (useTts) startTtsPlayback() else startTimerPlayback()
     }
 

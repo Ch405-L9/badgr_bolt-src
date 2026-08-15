@@ -45,6 +45,13 @@ class CwaltsNarrationController(private val context: Context) {
     private val cacheRoot = File(context.filesDir, "cwalts")
     private var player: MediaPlayer? = null
 
+    suspend fun verifyHealth() = withContext(Dispatchers.IO) {
+        val response = api.health()
+        check(response.isSuccessful && response.body()?.provider == "f5_local") {
+            "C.Walts health unavailable"
+        }
+    }
+
     suspend fun prepareSegment(book: Book, canonicalText: String, segmentIndex: Int): File = withContext(Dispatchers.IO) {
         val chunks = CwaltsNarrationChunker.split(canonicalText)
         require(segmentIndex in chunks.indices)
